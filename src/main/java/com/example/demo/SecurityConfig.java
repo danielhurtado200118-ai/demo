@@ -8,6 +8,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.http.HttpStatus;
 
 @Configuration
 public class SecurityConfig {
@@ -29,32 +31,29 @@ public class SecurityConfig {
                     .policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"))
             )
             .authorizeHttpRequests(auth -> auth
-                // 1. IMPORTANTE: Permitir el acceso a los recursos estáticos para que el JS cargue bien
-                .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/api/usuarios/login").permitAll()
+                // Recursos básicos libres
+                .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/api/usuarios/login").permitAll()
                 
-                // 2. Permitir que cualquier usuario autenticado vea (GET) y guarde (POST)
-                // Esto evita la redirección al login que rompe el JSON
+                // TABLAS: Cualquier usuario logueado puede VER (GET)
                 .requestMatchers(HttpMethod.GET, "/api/productos/**", "/api/usuarios/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/productos/**", "/api/usuarios/**").authenticated()
-                .requestMatchers(HttpMethod.PUT, "/api/productos/**").authenticated()
                 
-                // 3. Restricciones de borrado de la UTN
-                .requestMatchers(HttpMethod.DELETE, "/api/usuarios/**", "/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
+                // ACCIONES: Mantenemos roles UTN para guardar/editar/borrar
+                .requestMatchers(HttpMethod.POST, "/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN", "REGISTRADOR")
+                .requestMatchers(HttpMethod.POST, "/api/usuarios/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
                 
                 .anyRequest().authenticated()
             )
-            // 4. Evitamos que Spring redirija las peticiones de la API al login
+            // ESTO ARREGLA EL ERROR DEL JSON: 
+            // Si no hay permiso para la API, devuelve un error 401 en vez de redirigir al login (HTML)
             .exceptionHandling(ex -> ex
-                .authenticationEntryPoint((request, response, authException) -> {
-                    if (request.getRequestURI().startsWith("/api/")) {
-                        response.sendError(401, "No autorizado");
-                    } else {
-                        response.sendRedirect("/");
-                    }
-                })
+                .defaultAuthenticationEntryPointFor(
+                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED), 
+                    request -> request.getRequestURI().startsWith("/api/")
+                )
             )
-            .httpBasic(basic -> basic.disable())
-            .formLogin(form -> form.loginPage("/").permitAll());
+            .formLogin(form -> form.loginPage("/").permitAll())
+            .httpBasic(Customizer.withDefaults());
 
         return http.build();
     }
