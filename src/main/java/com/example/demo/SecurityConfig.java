@@ -14,52 +14,48 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Mantenemos el factor de costo 12 exigido por la UTN
         return new BCryptPasswordEncoder(12);
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // 1. Deshabilitamos CSRF para que el frontend pueda enviar datos a Neon
             .csrf(csrf -> csrf.disable())
-
-            // 2. CONFIGURACIÓN DE HEADERS DE SEGURIDAD (Regla RS-06)
             .headers(headers -> headers
                 .contentTypeOptions(Customizer.withDefaults())
                 .frameOptions(frame -> frame.deny())
-                .httpStrictTransportSecurity(hsts -> hsts
-                    .includeSubDomains(true)
-                    .maxAgeInSeconds(31536000))
+                .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
                 .contentSecurityPolicy(csp -> csp
-                    .policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"))
+                    .policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"))
             )
-
             .authorizeHttpRequests(auth -> auth
-                // Rutas públicas: página principal, login y recursos
-                .requestMatchers("/", "/index.html", "/api/usuarios/login", "/static/**", "/css/**", "/js/**").permitAll()
+                // 1. IMPORTANTE: Permitir el acceso a los recursos estáticos para que el JS cargue bien
+                .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/api/usuarios/login").permitAll()
                 
-                // 3. GESTIÓN DE USUARIOS
-                .requestMatchers(HttpMethod.POST, "/api/usuarios/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/api/usuarios/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
-                // CAMBIO: Permitimos que cualquier usuario logueado VEA la lista de usuarios (llena la tabla)
-                .requestMatchers(HttpMethod.GET, "/api/usuarios/**").authenticated()
+                // 2. Permitir que cualquier usuario autenticado vea (GET) y guarde (POST)
+                // Esto evita la redirección al login que rompe el JSON
+                .requestMatchers(HttpMethod.GET, "/api/productos/**", "/api/usuarios/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/productos/**", "/api/usuarios/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/productos/**").authenticated()
                 
-                // 4. GESTIÓN DE PRODUCTOS
-                .requestMatchers(HttpMethod.POST, "/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN", "REGISTRADOR")
-                .requestMatchers(HttpMethod.PUT, "/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN", "REGISTRADOR")
-                .requestMatchers(HttpMethod.DELETE, "/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
-                // CAMBIO: Permitimos que cualquier usuario logueado VEA los productos (llena la tabla)
-                .requestMatchers(HttpMethod.GET, "/api/productos/**").authenticated()
+                // 3. Restricciones de borrado de la UTN
+                .requestMatchers(HttpMethod.DELETE, "/api/usuarios/**", "/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
                 
-                // 5. Bloqueo por defecto
                 .anyRequest().authenticated()
             )
-            // Deshabilitamos el login básico del navegador para usar tu formulario
+            // 4. Evitamos que Spring redirija las peticiones de la API al login
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, authException) -> {
+                    if (request.getRequestURI().startsWith("/api/")) {
+                        response.sendError(401, "No autorizado");
+                    } else {
+                        response.sendRedirect("/");
+                    }
+                })
+            )
             .httpBasic(basic -> basic.disable())
-            .formLogin(form -> form.loginPage("/").permitAll())
-            .logout(logout -> logout.permitAll());
-        
+            .formLogin(form -> form.loginPage("/").permitAll());
+
         return http.build();
     }
 }
