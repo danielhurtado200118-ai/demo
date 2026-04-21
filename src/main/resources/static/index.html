@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema Agrícola - Los 3 Patitos (Fase 1)</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f4f4f4; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .hidden { display: none; } 
+        input, button, select { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+        button { background-color: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; }
+        button:hover { background-color: #218838; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #2d5a27; color: white; }
+        .rol-badge { background: #e2e2e2; padding: 5px; border-radius: 4px; font-size: 0.8em; font-weight: bold; color: #333; }
+        .seccion { border-top: 2px solid #2d5a27; margin-top: 30px; padding-top: 20px; }
+        .btn-accion { width: auto !important; padding: 5px 10px !important; margin: 2px !important; display: inline-block !important; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="seccion-login">
+        <h2>Ingreso al Sistema</h2>
+        <input type="text" id="user" placeholder="Usuario">
+        <input type="password" id="pass" placeholder="Contraseña">
+        <button onclick="ejecutarLogin()">Entrar</button>
+        <p id="msg-login" style="color: red;"></p>
+    </div>
+
+    <div id="panel-principal" class="hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>Panel de Control Agrícola</h2>
+            <button onclick="cerrarSesion()" style="width: 150px; background-color: #6c757d;">Cerrar Sesión</button>
+        </div>
+        <p>Sesión activa: <span id="info-rol" class="rol-badge"></span></p>
+
+        <div id="modulo-productos" class="seccion">
+            <h3>Gestión de Inventario</h3>
+            
+            <div id="form-producto-container">
+                <input type="hidden" id="p-id"> 
+                <input type="text" id="p-codigo" placeholder="Código">
+                <input type="text" id="p-nombre" placeholder="Nombre">
+                <input type="number" id="p-cant" placeholder="Cantidad">
+                <input type="number" id="p-precio" placeholder="Precio">
+                <button id="btn-guardar-prod" onclick="guardarProducto()">Guardar Producto</button>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Cant.</th>
+                        <th>Precio</th>
+                        <th id="col-acciones-prod">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-productos"></tbody>
+            </table>
+        </div>
+
+        <div id="modulo-usuarios" class="seccion hidden">
+            <h3>Gestión de Usuarios y Roles</h3>
+            <div id="form-usuario-container">
+                <input type="text" id="u-username" placeholder="Nombre de Usuario">
+                <input type="password" id="u-password" placeholder="Contraseña">
+                <select id="u-rol">
+                    <option value="SUPERADMIN">SUPERADMIN</option>
+                    <option value="REGISTRADOR">REGISTRADOR</option>
+                    <option value="AUDITOR">AUDITOR</option>
+                    <option value="ADMIN">ADMIN</option>
+                </select>
+                <button onclick="guardarUsuario()" style="background-color: #007bff;">Crear/Actualizar Usuario</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-usuarios"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let ROL_ACTUAL = "";
+
+    async function ejecutarLogin() {
+        const usuario = document.getElementById('user').value;
+        const clave = document.getElementById('pass').value;
+
+        const response = await fetch('/api/usuarios/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: usuario, password: clave })
+        });
+
+        const texto = await response.text();
+        
+        if (texto.includes("✅")) {
+            const partes = texto.split("|");
+            ROL_ACTUAL = partes[1].toUpperCase();
+            localStorage.setItem('token_finca', partes[2]);
+
+            document.getElementById('seccion-login').classList.add('hidden');
+            document.getElementById('panel-principal').classList.remove('hidden');
+            document.getElementById('info-rol').innerText = "Usuario: " + usuario + " | Rol: " + ROL_ACTUAL;
+
+            configurarVistaPorRol();
+            cargarProductos();
+            
+            // AHORA: Registrador y Auditor también cargan la lista de usuarios (solo lectura)
+            const rolesConAccesoALista = ["SUPERADMIN", "ADMIN", "AUDITOR", "REGISTRADOR"];
+            if (rolesConAccesoALista.includes(ROL_ACTUAL)) {
+                cargarUsuarios();
+            }
+        } else {
+            document.getElementById('msg-login').innerText = "Credenciales incorrectas";
+        }
+    }
+
+    function configurarVistaPorRol() {
+        // Reiniciar visibilidad de módulos comunes
+        document.getElementById('modulo-usuarios').classList.add('hidden');
+        document.getElementById('form-usuario-container').classList.add('hidden');
+        document.getElementById('form-producto-container').classList.add('hidden');
+
+        if (ROL_ACTUAL === "SUPERADMIN" || ROL_ACTUAL === "ADMIN") {
+            document.getElementById('modulo-usuarios').classList.remove('hidden');
+            document.getElementById('form-usuario-container').classList.remove('hidden');
+            document.getElementById('form-producto-container').classList.remove('hidden');
+        } 
+        else if (ROL_ACTUAL === "REGISTRADOR") {
+            // El registrador VE usuarios (lectura) y GESTIONA productos
+            document.getElementById('modulo-usuarios').classList.remove('hidden');
+            document.getElementById('form-producto-container').classList.remove('hidden');
+        } 
+        else if (ROL_ACTUAL === "AUDITOR") {
+            // El auditor VE ambos pero no tiene formularios de creación
+            document.getElementById('modulo-usuarios').classList.remove('hidden');
+        }
+    }
+
+    // --- LÓGICA DE PRODUCTOS ---
+    async function cargarProductos() {
+        const resp = await fetch('/api/productos');
+        const productos = await resp.json();
+        const tabla = document.getElementById('lista-productos');
+        tabla.innerHTML = ""; 
+
+        const puedeEditar = (ROL_ACTUAL === "SUPERADMIN" || ROL_ACTUAL === "REGISTRADOR" || ROL_ACTUAL === "ADMIN");
+
+        productos.forEach(p => {
+            let botones = puedeEditar ? `
+                <td>
+                    <button class="btn-accion" onclick="prepararEdicionProd(${p.id},'${p.codigo}','${p.nombre}',${p.cantidad},${p.precio})" style="background-color: #ffc107; color: black;">✏️</button>
+                    <button class="btn-accion" onclick="eliminarProducto(${p.id})" style="background-color: #dc3545;">🗑️</button>
+                </td>
+            ` : "<td>Solo lectura</td>";
+
+            tabla.innerHTML += `<tr>
+                <td>${p.codigo}</td><td>${p.nombre}</td><td>${p.cantidad}</td><td>$${p.precio}</td>${botones}
+            </tr>`;
+        });
+    }
+
+    async function guardarProducto() {
+        const id = document.getElementById('p-id').value;
+        const prod = {
+            codigo: document.getElementById('p-codigo').value,
+            nombre: document.getElementById('p-nombre').value,
+            cantidad: parseInt(document.getElementById('p-cant').value),
+            precio: parseFloat(document.getElementById('p-precio').value)
+        };
+
+        const metodo = id ? 'PUT' : 'POST';
+        const url = id ? `/api/productos/${id}` : '/api/productos';
+
+        const resp = await fetch(url, {
+            method: metodo,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(prod)
+        });
+
+        if (resp.ok) {
+            limpiarFormProducto();
+            cargarProductos();
+            alert("¡Producto guardado!");
+        } else {
+            alert("Error de permisos en el servidor.");
+        }
+    }
+
+    function prepararEdicionProd(id, cod, nom, cant, pre) {
+        document.getElementById('p-id').value = id;
+        document.getElementById('p-codigo').value = cod;
+        document.getElementById('p-nombre').value = nom;
+        document.getElementById('p-cant').value = cant;
+        document.getElementById('p-precio').value = pre;
+        document.getElementById('btn-guardar-prod').innerText = "Actualizar Producto";
+    }
+
+    async function eliminarProducto(id) {
+        if (confirm("¿Eliminar producto?")) {
+            const resp = await fetch(`/api/productos/${id}`, { method: 'DELETE' });
+            if (resp.ok) cargarProductos();
+            else alert("No tienes permisos para eliminar.");
+        }
+    }
+
+    function limpiarFormProducto() {
+        document.getElementById('p-id').value = "";
+        document.getElementById('p-codigo').value = "";
+        document.getElementById('p-nombre').value = "";
+        document.getElementById('p-cant').value = "";
+        document.getElementById('p-precio').value = "";
+        document.getElementById('btn-guardar-prod').innerText = "Guardar Producto";
+    }
+
+    // --- LÓGICA DE USUARIOS ---
+    async function cargarUsuarios() {
+        try {
+            const resp = await fetch('/api/usuarios');
+            if (!resp.ok) return; 
+            
+            const usuarios = await resp.json();
+            const tabla = document.getElementById('lista-usuarios');
+            tabla.innerHTML = "";
+
+            const esSuper = (ROL_ACTUAL === "SUPERADMIN" || ROL_ACTUAL === "ADMIN");
+
+            usuarios.forEach(u => {
+                let botones = esSuper ? `
+                    <td>
+                        <button class="btn-accion" onclick="eliminarUsuario(${u.id})" style="background-color: #dc3545;">Eliminar</button>
+                    </td>
+                ` : "<td>Lectura</td>";
+
+                tabla.innerHTML += `<tr>
+                    <td>${u.id}</td>
+                    <td>${u.username}</td>
+                    <td>${u.rol || 'N/A'}</td> 
+                    ${botones}
+                </tr>`;
+            });
+        } catch (e) {
+            console.error("Error al cargar lista:", e);
+        }
+    }
+
+    async function guardarUsuario() {
+        const userObj = {
+            username: document.getElementById('u-username').value,
+            password: document.getElementById('u-password').value,
+            rol: document.getElementById('u-rol').value
+        };
+
+        if (!userObj.username || !userObj.password) {
+            alert("Completa los datos");
+            return;
+        }
+
+        const resp = await fetch('/api/usuarios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userObj)
+        });
+
+        if (resp.ok) {
+            alert("Usuario procesado");
+            document.getElementById('u-username').value = "";
+            document.getElementById('u-password').value = "";
+            setTimeout(cargarUsuarios, 300);
+        } else {
+            alert("Acceso denegado: Solo administradores.");
+        }
+    }
+
+    async function eliminarUsuario(id) {
+        if (confirm("¿Eliminar usuario?")) {
+            const resp = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
+            if (resp.ok) cargarUsuarios();
+            else alert("Error: No tienes permisos.");
+        }
+    }
+
+    function cerrarSesion() {
+        localStorage.removeItem('token_finca');
+        location.reload();
+    }
+</script>
+</body>
+</html>
