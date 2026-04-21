@@ -3,4 +3,4 @@ WORKDIR /app
 COPY . .
 RUN chmod +x gradlew
 RUN ./gradlew bootJar
-ENTRYPOINT ["sh", "-c", "java -jar build/libs/*[0-9].jar"]
+ENTRYPOINT ["java", "-jar", "build/libs/demo-0.0.1-SNAPSHOT.jar"]
