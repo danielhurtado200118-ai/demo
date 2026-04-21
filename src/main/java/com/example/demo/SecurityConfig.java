@@ -14,16 +14,17 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
+        // Mantenemos el factor de costo 12 exigido por la UTN
         return new BCryptPasswordEncoder(12);
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // 1. Mantenemos CSRF deshabilitado para que el formulario funcione
+            // Deshabilitamos CSRF para permitir peticiones desde el frontend actual
             .csrf(csrf -> csrf.disable())
 
-            // 2. Headers de seguridad (Mantenemos tus reglas de la UTN)
+            // CONFIGURACIÓN DE HEADERS DE SEGURIDAD (Regla RS-06)
             .headers(headers -> headers
                 .contentTypeOptions(Customizer.withDefaults())
                 .frameOptions(frame -> frame.deny())
@@ -35,19 +36,31 @@ public class SecurityConfig {
             )
 
             .authorizeHttpRequests(auth -> auth
-                // Rutas públicas
-                .requestMatchers("/", "/index.html", "/api/usuarios/login").permitAll()
+                // 1. Rutas públicas
+                .requestMatchers("/", "/index.html", "/api/usuarios/login", "/css/**", "/js/**").permitAll()
                 
-                // AJUSTE AQUÍ: Permitimos que cualquier usuario logueado gestione productos
-                // Esto es para que el usuario "admin" de Render pueda guardar sin problemas
-                .requestMatchers("/api/productos/**").authenticated()
-                .requestMatchers("/api/usuarios/**").authenticated()
+                // 2. LOGS DE AUDITORÍA: Solo el SuperAdmin tiene acceso
+                .requestMatchers("/api/usuarios/logs").hasAuthority("SUPERADMIN")
 
-                // Bloqueo por defecto
+                // 3. GESTIÓN DE USUARIOS
+                .requestMatchers(HttpMethod.POST, "/api/usuarios/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/usuarios/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
+                // CAMBIO: Permitimos que cualquier usuario autenticado (incluyendo tu admin de Render) vea la lista
+                .requestMatchers(HttpMethod.GET, "/api/usuarios/**").authenticated()
+                
+                // 4. GESTIÓN DE PRODUCTOS
+                // Para guardar o editar, permitimos a cualquier usuario autenticado por ahora (para que funcione el botón)
+                .requestMatchers(HttpMethod.POST, "/api/productos/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/productos/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
+                // CAMBIO: Cualquier usuario logueado puede VER los productos en la tabla
+                .requestMatchers(HttpMethod.GET, "/api/productos/**").authenticated()
+                
+                // 5. Bloqueo por defecto para cualquier otra ruta
                 .anyRequest().authenticated()
             )
-            // Agregamos login por formulario básico por si acaso
-            .formLogin(Customizer.withDefaults())
+            // Agregamos esto para que el sistema reconozca el login del formulario
+            .formLogin(form -> form.loginPage("/").permitAll())
             .httpBasic(Customizer.withDefaults());
         
         return http.build();
