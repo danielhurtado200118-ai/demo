@@ -21,10 +21,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // Deshabilitamos CSRF para permitir peticiones desde el frontend actual
+            // 1. Deshabilitamos CSRF para que el botón de Guardar funcione en la nube
             .csrf(csrf -> csrf.disable())
 
-            // CONFIGURACIÓN DE HEADERS DE SEGURIDAD (Regla RS-06)
+            // 2. HEADERS DE SEGURIDAD (Regla RS-06 de la UTN)
             .headers(headers -> headers
                 .contentTypeOptions(Customizer.withDefaults())
                 .frameOptions(frame -> frame.deny())
@@ -36,33 +36,36 @@ public class SecurityConfig {
             )
 
             .authorizeHttpRequests(auth -> auth
-                // 1. Rutas públicas
-                .requestMatchers("/", "/index.html", "/api/usuarios/login", "/css/**", "/js/**").permitAll()
+                // Rutas públicas: página de inicio, login y archivos de diseño
+                .requestMatchers("/", "/index.html", "/api/usuarios/login", "/css/**", "/js/**", "/static/**").permitAll()
                 
-                // 2. LOGS DE AUDITORÍA: Solo el SuperAdmin tiene acceso
+                // LOGS DE AUDITORÍA: Solo el SuperAdmin
                 .requestMatchers("/api/usuarios/logs").hasAuthority("SUPERADMIN")
 
-                // 3. GESTIÓN DE USUARIOS
-                .requestMatchers(HttpMethod.POST, "/api/usuarios/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/api/usuarios/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
-                // CAMBIO: Permitimos que cualquier usuario autenticado (incluyendo tu admin de Render) vea la lista
-                .requestMatchers(HttpMethod.GET, "/api/usuarios/**").authenticated()
-                
-                // 4. GESTIÓN DE PRODUCTOS
-                // Para guardar o editar, permitimos a cualquier usuario autenticado por ahora (para que funcione el botón)
-                .requestMatchers(HttpMethod.POST, "/api/productos/**").authenticated()
+                // GESTIÓN DE PRODUCTOS Y USUARIOS (Para que las tablas aparezcan)
+                // Permitimos VER (GET) y GUARDAR (POST/PUT) a cualquier usuario autenticado
+                .requestMatchers(HttpMethod.GET, "/api/productos/**", "/api/usuarios/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/productos/**", "/api/usuarios/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/productos/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
-                // CAMBIO: Cualquier usuario logueado puede VER los productos en la tabla
-                .requestMatchers(HttpMethod.GET, "/api/productos/**").authenticated()
                 
-                // 5. Bloqueo por defecto para cualquier otra ruta
+                // ELIMINAR: Mantenemos la restricción estricta de la UTN
+                .requestMatchers(HttpMethod.DELETE, "/api/usuarios/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
+                
+                // Bloqueo por defecto para cualquier otra cosa
                 .anyRequest().authenticated()
             )
-            // Agregamos esto para que el sistema reconozca el login del formulario
-            .formLogin(form -> form.loginPage("/").permitAll())
-            .httpBasic(Customizer.withDefaults());
-        
+            // Configuramos para que no salga la ventana gris del navegador
+            .httpBasic(basic -> basic.disable())
+            
+            // Usamos tu formulario de login del index.html
+            .formLogin(form -> form
+                .loginPage("/")
+                .permitAll()
+            )
+            .logout(logout -> logout.permitAll());
+
         return http.build();
     }
 }
+
