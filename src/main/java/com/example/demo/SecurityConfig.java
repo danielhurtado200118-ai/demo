@@ -19,7 +19,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Permite usar tus contraseñas antiguas de Neon
+        // Importante: Esto permite que tus claves de la base de datos funcionen tal cual
         return NoOpPasswordEncoder.getInstance();
     }
 
@@ -27,27 +27,34 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
-            // ESTO ELIMINA EL ERROR ROJO DE CORS
+            // 1. Activa la configuración de CORS definida abajo
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            
             .authorizeHttpRequests(auth -> auth
+                // Permite el acceso al login y al index sin estar logueado aún
                 .requestMatchers("/", "/index.html", "/api/usuarios/login").permitAll()
                 .anyRequest().authenticated()
             )
-            // ESTO EVITA QUE SALGA EL CUADRO NEGRO DEL NAVEGADOR
+            
+            // 2. Bloquea el cuadro negro de "Acceder" del navegador
             .httpBasic(basic -> basic.authenticationEntryPoint((request, response, authException) -> {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("{\"error\": \"No autorizado\"}");
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\": \"No autorizado - Debes loguearte en el formulario\"}");
             }));
 
         return http.build();
     }
 
+    // 3. Configuración detallada de CORS (Quita los errores rojos de la consola)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList("*")); 
+        config.setAllowedOrigins(Arrays.asList("*")); // Permite cualquier origen (Frontend)
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        config.setExposedHeaders(Arrays.asList("Authorization"));
+        
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
