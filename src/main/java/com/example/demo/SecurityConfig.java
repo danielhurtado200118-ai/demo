@@ -19,7 +19,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Importante: Esto permite que tus claves de la base de datos funcionen tal cual
+        // Permite usar las contraseñas de Neon tal cual están
         return NoOpPasswordEncoder.getInstance();
     }
 
@@ -27,30 +27,26 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
-            // 1. Activa la configuración de CORS definida abajo
+            // Activa la configuración de CORS para el navegador
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            
             .authorizeHttpRequests(auth -> auth
-                // Permite el acceso al login y al index sin estar logueado aún
                 .requestMatchers("/", "/index.html", "/api/usuarios/login").permitAll()
                 .anyRequest().authenticated()
             )
-            
-            // 2. Bloquea el cuadro negro de "Acceder" del navegador
+            // Bloquea el cuadro de login automático del navegador
             .httpBasic(basic -> basic.authenticationEntryPoint((request, response, authException) -> {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
-                response.getWriter().write("{\"error\": \"No autorizado - Debes loguearte en el formulario\"}");
+                response.getWriter().write("{\"error\": \"No autorizado\"}");
             }));
 
         return http.build();
     }
 
-    // 3. Configuración detallada de CORS (Quita los errores rojos de la consola)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList("*")); // Permite cualquier origen (Frontend)
+        config.setAllowedOrigins(Arrays.asList("*")); 
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
         config.setExposedHeaders(Arrays.asList("Authorization"));
