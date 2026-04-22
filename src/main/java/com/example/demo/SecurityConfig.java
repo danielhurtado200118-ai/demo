@@ -14,7 +14,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    // ESTO ARREGLA EL ERROR DE LA IMAGEN: Proporciona el "bean" PasswordEncoder
+    // ESTO ES LO QUE RENDER PIDE: El codificador de contraseñas
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -23,11 +23,9 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) // Desactivar para permitir login desde el navegador
-            .cors(cors -> {}) // Habilitar CORS
-            .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll() // Permitir todo temporalmente para que tu demo funcione
-            );
+            .csrf(csrf -> csrf.disable()) 
+            .cors(cors -> {})
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll()); // Deja pasar todo para evitar errores en la demo
         return http.build();
     }
 
@@ -36,10 +34,7 @@ public class SecurityConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**")
-                        .allowedOrigins("*")
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                        .allowedHeaders("*");
+                registry.addMapping("/**").allowedOrigins("*").allowedMethods("*").allowedHeaders("*");
             }
         };
     }
