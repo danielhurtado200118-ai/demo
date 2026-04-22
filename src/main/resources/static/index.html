@@ -1,75 +1,147 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Sistema Agrícola</title>
+    <title>Inventario Agrícola - Los 3 Patitos</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #eee; }
-        .box { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 10px; }
+        body { font-family: sans-serif; background-color: #f9f9f9; padding: 20px; color: #333; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        h2, h3 { margin-top: 0; }
+        
+        /* Estilo de la cabecera de usuario */
+        .user-info { background: #e9ecef; padding: 5px 10px; border-radius: 4px; font-size: 0.9em; float: right; }
+        
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 1em; }
+        
+        button { width: 100%; padding: 12px; border: none; border-radius: 4px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-save { background-color: #28a745; color: white; }
+        .btn-save:hover { background-color: #218838; }
+        .btn-logout { background-color: #6c757d; color: white; margin-top: 20px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; }
+        /* El color verde oscuro de tu captura */
+        th { background-color: #2d5a27; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        
         .hidden { display: none; }
-        input, button { width: 100%; padding: 10px; margin: 5px 0; }
-        button { background: #28a745; color: white; border: none; cursor: pointer; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     </style>
 </head>
 <body>
-<div class="box">
-    <div id="p-login">
-        <h2>Login</h2>
-        <input type="text" id="u" placeholder="Usuario">
-        <input type="password" id="p" placeholder="Clave">
-        <button onclick="login()">Entrar</button>
-        <p id="err" style="color:red"></p>
+
+<div class="container">
+    <div id="seccion-login">
+        <h2>Ingreso al Sistema</h2>
+        <input type="text" id="user" placeholder="Usuario">
+        <input type="password" id="pass" placeholder="Contraseña">
+        <button class="btn-save" onclick="ejecutarLogin()">Entrar</button>
+        <p id="msg-login" style="color: red; text-align: center;"></p>
     </div>
 
-    <div id="p-gestion" class="hidden">
-        <h2>Inventario Agrícola</h2>
-        <input type="text" id="n" placeholder="Nombre">
-        <input type="number" id="c" placeholder="Cantidad">
-        <button onclick="guardar()">Guardar Producto</button>
+    <div id="panel-principal" class="hidden">
+        <div class="user-info" id="info-rol"></div>
+        <p>Bienvenido al inventario.</p>
+        
+        <h3>Registrar Nuevo Producto</h3>
+        <input type="text" id="p-codigo" placeholder="Código (Ej: FER-001)">
+        <input type="text" id="p-nombre" placeholder="Nombre del Producto">
+        <input type="text" id="p-desc" placeholder="Descripción">
+        <input type="number" id="p-cant" placeholder="Cantidad">
+        <input type="number" id="p-precio" placeholder="Precio">
+        
+        <button class="btn-save" onclick="guardarProducto()">Guardar Producto</button>
+
+        <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
+
+        <h3>Inventario Actual</h3>
         <table>
-            <thead><tr><th>Nombre</th><th>Cant.</th></tr></thead>
-            <tbody id="lista"></tbody>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Cant.</th>
+                    <th>Precio</th>
+                </tr>
+            </thead>
+            <tbody id="lista-productos">
+                </tbody>
         </table>
-        <button onclick="location.reload()" style="background:#666; margin-top:20px;">Salir</button>
+
+        <button class="btn-logout" onclick="location.reload()">Cerrar Sesión</button>
     </div>
 </div>
 
 <script>
-    const API = "https://backend-agricola.onrender.com";
+    let ROL_ACTUAL = "";
 
-    async function login() {
-        const res = await fetch(API + "/api/usuarios/login", {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({username: document.getElementById('u').value, password: document.getElementById('p').value})
-        });
-        const txt = await res.text();
-        if(txt.includes("✅")) {
-            document.getElementById('p-login').classList.add('hidden');
-            document.getElementById('p-gestion').classList.remove('hidden');
-            ver();
-        } else {
-            document.getElementById('err').innerText = "Error de acceso";
+    async function ejecutarLogin() {
+        const user = document.getElementById('user').value;
+        const pass = document.getElementById('pass').value;
+
+        try {
+            const resp = await fetch('/api/usuarios/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+            const texto = await resp.text();
+
+            if (texto.includes("✅")) {
+                const partes = texto.split("|");
+                ROL_ACTUAL = partes[1].toUpperCase().trim();
+                
+                document.getElementById('seccion-login').classList.add('hidden');
+                document.getElementById('panel-principal').classList.remove('hidden');
+                document.getElementById('info-rol').innerText = `Usuario: ${user} | Rol: ${ROL_ACTUAL}`;
+                
+                cargarProductos();
+            } else {
+                document.getElementById('msg-login').innerText = "Credenciales incorrectas";
+            }
+        } catch (e) {
+            document.getElementById('msg-login').innerText = "Error de conexión con el servidor";
         }
     }
 
-    async function ver() {
-        const res = await fetch(API + "/api/productos");
-        const datos = await res.json();
-        let h = "";
-        datos.forEach(i => { h += "<tr><td>"+i.nombre+"</td><td>"+i.cantidad+"</td></tr>"; });
-        document.getElementById('lista').innerHTML = h;
+    async function cargarProductos() {
+        const resp = await fetch('/api/productos');
+        const productos = await resp.json();
+        const tabla = document.getElementById('lista-productos');
+        
+        tabla.innerHTML = productos.map(p => `
+            <tr>
+                <td>${p.codigo}</td>
+                <td>${p.nombre}</td>
+                <td>${p.cantidad}</td>
+                <td>$${p.precio}</td>
+            </tr>
+        `).join('');
     }
 
-    async function guardar() {
-        await fetch(API + "/api/productos", {
+    async function guardarProducto() {
+        const prod = {
+            codigo: document.getElementById('p-codigo').value,
+            nombre: document.getElementById('p-nombre').value,
+            cantidad: parseInt(document.getElementById('p-cant').value),
+            precio: parseFloat(document.getElementById('p-precio').value)
+        };
+
+        const resp = await fetch('/api/productos', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({nombre: document.getElementById('n').value, cantidad: parseInt(document.getElementById('c').value)})
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(prod)
         });
-        ver();
+
+        if (resp.ok) {
+            alert("Producto guardado");
+            cargarProductos();
+            // Limpiar campos
+            document.getElementById('p-codigo').value = "";
+            document.getElementById('p-nombre').value = "";
+            document.getElementById('p-desc').value = "";
+            document.getElementById('p-cant').value = "";
+            document.getElementById('p-precio').value = "";
+        }
     }
 </script>
 </body>
