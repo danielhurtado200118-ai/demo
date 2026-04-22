@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://backend-agricola.onrender.com;">
     <title>Sistema Agrícola - Los 3 Patitos</title>
     <style>
         body { font-family: sans-serif; background-color: #f4f4f4; padding: 20px; }
@@ -15,7 +16,7 @@
         th { background-color: #2d5a27; color: white; }
         .rol-badge { background: #e2e2e2; padding: 5px; border-radius: 4px; font-size: 0.8em; font-weight: bold; color: #333; }
         .seccion { border-top: 2px solid #2d5a27; margin-top: 30px; padding-top: 20px; }
-        .btn-accion { width: auto !important; padding: 5px 10px !important; margin: 2px !important; display: inline-block !important; border-radius: 4px; }
+        .btn-accion { width: auto !important; padding: 5px 10px !important; margin: 2px !important; display: inline-block !important; }
     </style>
 </head>
 <body>
@@ -32,14 +33,13 @@
     <div id="panel-principal" class="hidden">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2>Panel de Control Agrícola</h2>
-            <button onclick="cerrarSesion()" style="width: 150px; background-color: #6c757d;">Cerrar Sesión</button>
+            <button onclick="location.reload()" style="width: 150px; background-color: #6c757d;">Cerrar Sesión</button>
         </div>
         <p>Sesión activa: <span id="info-rol" class="rol-badge"></span></p>
 
         <div id="modulo-productos" class="seccion">
             <h3>Gestión de Inventario</h3>
-            
-            <div id="form-producto-container">
+            <div id="form-producto-container" class="hidden">
                 <input type="hidden" id="p-id"> 
                 <input type="text" id="p-codigo" placeholder="Código">
                 <input type="text" id="p-nombre" placeholder="Nombre">
@@ -47,43 +47,28 @@
                 <input type="number" id="p-precio" placeholder="Precio">
                 <button id="btn-guardar-prod" onclick="guardarProducto()">Guardar Producto</button>
             </div>
-
             <table>
                 <thead>
-                    <tr>
-                        <th>Código</th>
-                        <th>Nombre</th>
-                        <th>Cant.</th>
-                        <th>Precio</th>
-                        <th>Acciones</th>
-                    </tr>
+                    <tr><th>Código</th><th>Nombre</th><th>Cant.</th><th>Precio</th><th>Acciones</th></tr>
                 </thead>
                 <tbody id="lista-productos"></tbody>
             </table>
         </div>
 
         <div id="modulo-usuarios" class="seccion hidden">
-            <h3>Gestión de Usuarios y Roles</h3>
-            <div id="form-usuario-container">
-                <input type="text" id="u-username" placeholder="Nombre de Usuario">
-                <input type="password" id="u-password" placeholder="Contraseña">
+            <h3>Gestión de Usuarios</h3>
+            <div id="form-usuario-container" class="hidden">
+                <input type="text" id="u-username" placeholder="Usuario">
+                <input type="password" id="u-password" placeholder="Clave">
                 <select id="u-rol">
                     <option value="REGISTRADOR">REGISTRADOR</option>
                     <option value="ADMIN">ADMIN</option>
                     <option value="SUPERADMIN">SUPERADMIN</option>
-                    <option value="AUDITOR">AUDITOR</option>
                 </select>
-                <button onclick="guardarUsuario()" style="background-color: #007bff;">Crear/Actualizar Usuario</button>
+                <button onclick="guardarUsuario()" style="background-color: #007bff;">Crear Usuario</button>
             </div>
             <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Usuario</th>
-                        <th>Rol</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>ID</th><th>Usuario</th><th>Rol</th><th>Acciones</th></tr></thead>
                 <tbody id="lista-usuarios"></tbody>
             </table>
         </div>
@@ -101,82 +86,49 @@
         AUTH_HEADER = 'Basic ' + btoa(usuario + ':' + clave);
 
         try {
-            const response = await fetch(`${API_URL}/api/usuarios/login`, {
+            const resp = await fetch(`${API_URL}/api/usuarios/login`, {
                 method: 'POST',
-                headers: { 
-                    'Authorization': AUTH_HEADER,
-                    'Content-Type': 'application/json' 
-                },
+                headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: usuario, password: clave })
             });
 
-            const texto = await response.text();
-            
-            if (response.ok && texto.includes("✅")) {
+            const texto = await resp.text();
+            if (resp.ok && texto.includes("✅")) {
                 const partes = texto.split("|");
                 ROL_ACTUAL = partes[1].toUpperCase().trim();
-
                 document.getElementById('seccion-login').classList.add('hidden');
                 document.getElementById('panel-principal').classList.remove('hidden');
-                document.getElementById('info-rol').innerText = "Usuario: " + usuario + " | Rol: " + ROL_ACTUAL;
-
-                configurarVistaPorRol();
+                document.getElementById('info-rol').innerText = "Rol: " + ROL_ACTUAL;
+                configurarVista();
                 cargarProductos();
-                
-                const rolesConAccesoALista = ["SUPERADMIN", "ADMIN", "AUDITOR", "REGISTRADOR"];
-                if (rolesConAccesoALista.includes(ROL_ACTUAL)) {
-                    cargarUsuarios();
-                }
+                if (["ADMIN", "SUPERADMIN", "REGISTRADOR"].includes(ROL_ACTUAL)) cargarUsuarios();
             } else {
                 document.getElementById('msg-login').innerText = "Credenciales incorrectas";
             }
-        } catch (e) {
-            document.getElementById('msg-login').innerText = "Error de conexión con el servidor";
-        }
+        } catch (e) { document.getElementById('msg-login').innerText = "Error de conexión"; }
     }
 
-    function configurarVistaPorRol() {
-        document.getElementById('modulo-usuarios').classList.add('hidden');
-        document.getElementById('form-usuario-container').classList.add('hidden');
-        document.getElementById('form-producto-container').classList.add('hidden');
-
-        if (ROL_ACTUAL === "SUPERADMIN" || ROL_ACTUAL === "ADMIN") {
+    function configurarVista() {
+        if (["ADMIN", "SUPERADMIN"].includes(ROL_ACTUAL)) {
             document.getElementById('modulo-usuarios').classList.remove('hidden');
             document.getElementById('form-usuario-container').classList.remove('hidden');
             document.getElementById('form-producto-container').classList.remove('hidden');
-        } 
-        else if (ROL_ACTUAL === "REGISTRADOR") {
+        } else if (ROL_ACTUAL === "REGISTRADOR") {
             document.getElementById('modulo-usuarios').classList.remove('hidden');
             document.getElementById('form-producto-container').classList.remove('hidden');
-        }
-        else if (ROL_ACTUAL === "AUDITOR") {
-            document.getElementById('modulo-usuarios').classList.remove('hidden');
         }
     }
 
     async function cargarProductos() {
-        try {
-            const resp = await fetch(`${API_URL}/api/productos`, {
-                headers: { 'Authorization': AUTH_HEADER }
-            });
-            const productos = await resp.json();
-            const tabla = document.getElementById('lista-productos');
-            tabla.innerHTML = ""; 
-
-            const puedeEditar = (ROL_ACTUAL === "SUPERADMIN" || ROL_ACTUAL === "REGISTRADOR" || ROL_ACTUAL === "ADMIN");
-
-            productos.forEach(p => {
-                let botones = puedeEditar ? `
-                    <td>
-                        <button class="btn-accion" onclick="prepararEdicionProd(${p.id},'${p.codigo}','${p.nombre}',${p.cantidad},${p.precio})" style="background-color: #ffc107; color: black;">✏️</button>
-                        <button class="btn-accion" onclick="eliminarProducto(${p.id})" style="background-color: #dc3545;">🗑️</button>
-                    </td>` : "<td>Lectura</td>";
-                
-                tabla.innerHTML += `<tr>
-                    <td>${p.codigo}</td><td>${p.nombre}</td><td>${p.cantidad}</td><td>$${p.precio}</td>${botones}
-                </tr>`;
-            });
-        } catch (e) { console.error(e); }
+        const resp = await fetch(`${API_URL}/api/productos`, { headers: { 'Authorization': AUTH_HEADER } });
+        const prods = await resp.json();
+        const puedeEditar = ["ADMIN", "SUPERADMIN", "REGISTRADOR"].includes(ROL_ACTUAL);
+        document.getElementById('lista-productos').innerHTML = prods.map(p => `
+            <tr>
+                <td>${p.codigo}</td><td>${p.nombre}</td><td>${p.cantidad}</td><td>$${p.precio}</td>
+                <td>${puedeEditar ? `<button class="btn-accion" onclick="editarP(${p.id},'${p.codigo}','${p.nombre}',${p.cantidad},${p.precio})">✏️</button>
+                    <button class="btn-accion" onclick="borrarP(${p.id})">🗑️</button>` : 'Lectura'}</td>
+            </tr>`).join('');
     }
 
     async function guardarProducto() {
@@ -187,48 +139,32 @@
             cantidad: parseInt(document.getElementById('p-cant').value),
             precio: parseFloat(document.getElementById('p-precio').value)
         };
-
-        const metodo = id ? 'PUT' : 'POST';
         const url = id ? `${API_URL}/api/productos/${id}` : `${API_URL}/api/productos`;
-
         const resp = await fetch(url, {
-            method: metodo,
-            headers: { 
-                'Authorization': AUTH_HEADER,
-                'Content-Type': 'application/json' 
-            },
+            method: id ? 'PUT' : 'POST',
+            headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
             body: JSON.stringify(prod)
         });
-
-        if (resp.ok) {
-            limpiarFormProducto();
-            cargarProductos();
-            alert("¡Producto guardado!");
-        } else {
-            alert("Error de permisos.");
-        }
+        if (resp.ok) { alert("¡Éxito!"); limpiarP(); cargarProductos(); }
     }
 
-    function prepararEdicionProd(id, cod, nom, cant, pre) {
+    function editarP(id, c, n, ca, p) {
         document.getElementById('p-id').value = id;
-        document.getElementById('p-codigo').value = cod;
-        document.getElementById('p-nombre').value = nom;
-        document.getElementById('p-cant').value = cant;
-        document.getElementById('p-precio').value = pre;
-        document.getElementById('btn-guardar-prod').innerText = "Actualizar Producto";
+        document.getElementById('p-codigo').value = c;
+        document.getElementById('p-nombre').value = n;
+        document.getElementById('p-cant').value = ca;
+        document.getElementById('p-precio').value = p;
+        document.getElementById('btn-guardar-prod').innerText = "Actualizar";
     }
 
-    async function eliminarProducto(id) {
-        if (confirm("¿Eliminar producto?")) {
-            const resp = await fetch(`${API_URL}/api/productos/${id}`, { 
-                method: 'DELETE',
-                headers: { 'Authorization': AUTH_HEADER }
-            });
-            if (resp.ok) cargarProductos();
+    async function borrarP(id) {
+        if (confirm("¿Borrar?")) {
+            await fetch(`${API_URL}/api/productos/${id}`, { method: 'DELETE', headers: { 'Authorization': AUTH_HEADER } });
+            cargarProductos();
         }
     }
 
-    function limpiarFormProducto() {
+    function limpiarP() {
         document.getElementById('p-id').value = "";
         document.getElementById('p-codigo').value = "";
         document.getElementById('p-nombre').value = "";
@@ -238,71 +174,35 @@
     }
 
     async function cargarUsuarios() {
-        try {
-            const resp = await fetch(`${API_URL}/api/usuarios`, {
-                headers: { 'Authorization': AUTH_HEADER }
-            });
-            if (!resp.ok) return; 
-            
-            const usuarios = await resp.json();
-            const tabla = document.getElementById('lista-usuarios');
-            tabla.innerHTML = "";
-
-            const esSuper = (ROL_ACTUAL === "SUPERADMIN" || ROL_ACTUAL === "ADMIN");
-
-            usuarios.forEach(u => {
-                let botones = esSuper ? `
-                    <td>
-                        <button class="btn-accion" onclick="eliminarUsuario(${u.id})" style="background-color: #dc3545;">Eliminar</button>
-                    </td>` : "<td>Lectura</td>";
-                tabla.innerHTML += `<tr>
-                    <td>${u.id}</td>
-                    <td>${u.username}</td>
-                    <td>${u.rol || 'N/A'}</td> 
-                    ${botones}
-                </tr>`;
-            });
-        } catch (e) { console.error(e); }
+        const resp = await fetch(`${API_URL}/api/usuarios`, { headers: { 'Authorization': AUTH_HEADER } });
+        const users = await resp.json();
+        const esAdmin = ["ADMIN", "SUPERADMIN"].includes(ROL_ACTUAL);
+        document.getElementById('lista-usuarios').innerHTML = users.map(u => `
+            <tr>
+                <td>${u.id}</td><td>${u.username}</td><td>${u.rol}</td>
+                <td>${esAdmin ? `<button class="btn-accion" onclick="borrarU(${u.id})">🗑️</button>` : 'Lectura'}</td>
+            </tr>`).join('');
     }
 
     async function guardarUsuario() {
-        const userObj = {
+        const user = {
             username: document.getElementById('u-username').value,
             password: document.getElementById('u-password').value,
             rol: document.getElementById('u-rol').value
         };
-
         const resp = await fetch(`${API_URL}/api/usuarios`, {
             method: 'POST',
-            headers: { 
-                'Authorization': AUTH_HEADER,
-                'Content-Type': 'application/json' 
-            },
-            body: JSON.stringify(userObj)
+            headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
+            body: JSON.stringify(user)
         });
+        if (resp.ok) { alert("¡Usuario creado!"); cargarUsuarios(); }
+    }
 
-        if (resp.ok) {
-            alert("Usuario procesado");
-            document.getElementById('u-username').value = "";
-            document.getElementById('u-password').value = "";
+    async function borrarU(id) {
+        if (confirm("¿Borrar usuario?")) {
+            await fetch(`${API_URL}/api/usuarios/${id}`, { method: 'DELETE', headers: { 'Authorization': AUTH_HEADER } });
             cargarUsuarios();
-        } else {
-            alert("Acceso denegado.");
         }
-    }
-
-    async function eliminarUsuario(id) {
-        if (confirm("¿Eliminar usuario?")) {
-            const resp = await fetch(`${API_URL}/api/usuarios/${id}`, { 
-                method: 'DELETE',
-                headers: { 'Authorization': AUTH_HEADER }
-            });
-            if (resp.ok) cargarUsuarios();
-        }
-    }
-
-    function cerrarSesion() {
-        location.reload();
     }
 </script>
 </body>
