@@ -2,20 +2,20 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://backend-agricola.onrender.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
-    <title>Sistema Agrícola - Los 3 Patitos</title>
+    <title>Sistema Agrícola - Los 3 Patitos (Fase 1)</title>
     <style>
         body { font-family: sans-serif; background-color: #f4f4f4; padding: 20px; }
         .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         .hidden { display: none; } 
         input, button, select { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
         button { background-color: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        button:hover { background-color: #218838; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         th { background-color: #2d5a27; color: white; }
-        .rol-badge { background: #e2e2e2; padding: 5px; border-radius: 4px; font-weight: bold; }
+        .rol-badge { background: #e2e2e2; padding: 5px; border-radius: 4px; font-size: 0.8em; font-weight: bold; color: #333; }
         .seccion { border-top: 2px solid #2d5a27; margin-top: 30px; padding-top: 20px; }
-        .btn-accion { width: auto !important; padding: 5px 10px !important; display: inline-block !important; }
+        .btn-accion { width: auto !important; padding: 5px 10px !important; margin: 2px !important; display: inline-block !important; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -32,13 +32,14 @@
     <div id="panel-principal" class="hidden">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2>Panel de Control Agrícola</h2>
-            <button onclick="location.reload()" style="width: 150px; background-color: #6c757d;">Cerrar Sesión</button>
+            <button onclick="cerrarSesion()" style="width: 150px; background-color: #6c757d;">Cerrar Sesión</button>
         </div>
         <p>Sesión activa: <span id="info-rol" class="rol-badge"></span></p>
 
         <div id="modulo-productos" class="seccion">
             <h3>Gestión de Inventario</h3>
-            <div id="form-producto-container" class="hidden">
+            
+            <div id="form-producto-container">
                 <input type="hidden" id="p-id"> 
                 <input type="text" id="p-codigo" placeholder="Código">
                 <input type="text" id="p-nombre" placeholder="Nombre">
@@ -46,28 +47,43 @@
                 <input type="number" id="p-precio" placeholder="Precio">
                 <button id="btn-guardar-prod" onclick="guardarProducto()">Guardar Producto</button>
             </div>
+
             <table>
                 <thead>
-                    <tr><th>Código</th><th>Nombre</th><th>Cant.</th><th>Precio</th><th>Acciones</th></tr>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Cant.</th>
+                        <th>Precio</th>
+                        <th id="col-acciones-prod">Acciones</th>
+                    </tr>
                 </thead>
                 <tbody id="lista-productos"></tbody>
             </table>
         </div>
 
         <div id="modulo-usuarios" class="seccion hidden">
-            <h3>Gestión de Usuarios</h3>
-            <div id="form-usuario-container" class="hidden">
-                <input type="text" id="u-username" placeholder="Usuario">
-                <input type="password" id="u-password" placeholder="Clave">
+            <h3>Gestión de Usuarios y Roles</h3>
+            <div id="form-usuario-container">
+                <input type="text" id="u-username" placeholder="Nombre de Usuario">
+                <input type="password" id="u-password" placeholder="Contraseña">
                 <select id="u-rol">
-                    <option value="REGISTRADOR">REGISTRADOR</option>
-                    <option value="ADMIN">ADMIN</option>
                     <option value="SUPERADMIN">SUPERADMIN</option>
+                    <option value="REGISTRADOR">REGISTRADOR</option>
+                    <option value="AUDITOR">AUDITOR</option>
+                    <option value="ADMIN">ADMIN</option>
                 </select>
-                <button onclick="guardarUsuario()" style="background-color: #007bff;">Crear Usuario</button>
+                <button onclick="guardarUsuario()" style="background-color: #007bff;">Crear/Actualizar Usuario</button>
             </div>
             <table>
-                <thead><tr><th>ID</th><th>Usuario</th><th>Rol</th><th>Acciones</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
                 <tbody id="lista-usuarios"></tbody>
             </table>
         </div>
@@ -75,134 +91,75 @@
 </div>
 
 <script>
-    const API_URL = "https://backend-agricola.onrender.com"; 
-    let ROL_ACTUAL = "";
-    let AUTH_HEADER = "";
+const API_URL = "https://backend-agricola.onrender.com"; // ✅ YA PUESTO
 
-    async function ejecutarLogin() {
-        const usuario = document.getElementById('user').value;
-        const clave = document.getElementById('pass').value;
-        AUTH_HEADER = 'Basic ' + btoa(usuario + ':' + clave);
+let ROL_ACTUAL = "";
 
-        try {
-            const resp = await fetch(`${API_URL}/api/usuarios/login`, {
-                method: 'POST',
-                headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: usuario, password: clave })
-            });
+async function ejecutarLogin() {
+    const usuario = document.getElementById('user').value;
+    const clave = document.getElementById('pass').value;
 
-            const texto = await resp.text();
-            if (resp.ok && texto.includes("✅")) {
-                const partes = texto.split("|");
-                ROL_ACTUAL = partes[1].toUpperCase().trim();
-                document.getElementById('seccion-login').classList.add('hidden');
-                document.getElementById('panel-principal').classList.remove('hidden');
-                document.getElementById('info-rol').innerText = "Rol: " + ROL_ACTUAL;
-                configurarVista();
-                cargarProductos();
-                if (["ADMIN", "SUPERADMIN", "REGISTRADOR"].includes(ROL_ACTUAL)) cargarUsuarios();
-            } else {
-                document.getElementById('msg-login').innerText = "Credenciales incorrectas";
-            }
-        } catch (e) { document.getElementById('msg-login').innerText = "Error de conexión"; }
+    const response = await fetch(`${API_URL}/api/usuarios/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: usuario, password: clave })
+    });
+
+    const texto = await response.text();
+    
+    if (texto.includes("✅")) {
+        const partes = texto.split("|");
+        ROL_ACTUAL = partes[1].toUpperCase();
+
+        document.getElementById('seccion-login').classList.add('hidden');
+        document.getElementById('panel-principal').classList.remove('hidden');
+        document.getElementById('info-rol').innerText = "Usuario: " + usuario + " | Rol: " + ROL_ACTUAL;
+
+        configurarVistaPorRol();
+        cargarProductos();
+        cargarUsuarios();
+    } else {
+        document.getElementById('msg-login').innerText = "Credenciales incorrectas";
     }
+}
 
-    function configurarVista() {
-        if (["ADMIN", "SUPERADMIN"].includes(ROL_ACTUAL)) {
-            document.getElementById('modulo-usuarios').classList.remove('hidden');
-            document.getElementById('form-usuario-container').classList.remove('hidden');
-            document.getElementById('form-producto-container').classList.remove('hidden');
-        } else if (ROL_ACTUAL === "REGISTRADOR") {
-            document.getElementById('modulo-usuarios').classList.remove('hidden');
-            document.getElementById('form-producto-container').classList.remove('hidden');
-        }
-    }
+async function cargarProductos() {
+    const resp = await fetch(`${API_URL}/api/productos`);
+    const productos = await resp.json();
+    const tabla = document.getElementById('lista-productos');
+    tabla.innerHTML = "";
 
-    async function cargarProductos() {
-        const resp = await fetch(`${API_URL}/api/productos`, { headers: { 'Authorization': AUTH_HEADER } });
-        const prods = await resp.json();
-        const puedeEditar = ["ADMIN", "SUPERADMIN", "REGISTRADOR"].includes(ROL_ACTUAL);
-        document.getElementById('lista-productos').innerHTML = prods.map(p => `
-            <tr>
-                <td>${p.codigo}</td><td>${p.nombre}</td><td>${p.cantidad}</td><td>$${p.precio}</td>
-                <td>${puedeEditar ? `<button class="btn-accion" onclick="editarP(${p.id},'${p.codigo}','${p.nombre}',${p.cantidad},${p.precio})" style="background-color: #ffc107; color: black;">✏️</button>
-                    <button class="btn-accion" onclick="borrarP(${p.id})" style="background-color: #dc3545;">🗑️</button>` : 'Lectura'}</td>
-            </tr>`).join('');
-    }
+    productos.forEach(p => {
+        tabla.innerHTML += `<tr>
+            <td>${p.codigo}</td>
+            <td>${p.nombre}</td>
+            <td>${p.cantidad}</td>
+            <td>$${p.precio}</td>
+        </tr>`;
+    });
+}
 
-    async function guardarProducto() {
-        const id = document.getElementById('p-id').value;
-        const prod = {
-            codigo: document.getElementById('p-codigo').value,
-            nombre: document.getElementById('p-nombre').value,
-            cantidad: parseInt(document.getElementById('p-cant').value),
-            precio: parseFloat(document.getElementById('p-precio').value)
-        };
-        const url = id ? `${API_URL}/api/productos/${id}` : `${API_URL}/api/productos`;
-        const resp = await fetch(url, {
-            method: id ? 'PUT' : 'POST',
-            headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
-            body: JSON.stringify(prod)
-        });
-        if (resp.ok) { alert("¡Éxito!"); limpiarP(); cargarProductos(); }
-    }
+async function cargarUsuarios() {
+    const resp = await fetch(`${API_URL}/api/usuarios`);
+    if (!resp.ok) return;
 
-    function editarP(id, c, n, ca, p) {
-        document.getElementById('p-id').value = id;
-        document.getElementById('p-codigo').value = c;
-        document.getElementById('p-nombre').value = n;
-        document.getElementById('p-cant').value = ca;
-        document.getElementById('p-precio').value = p;
-        document.getElementById('btn-guardar-prod').innerText = "Actualizar";
-    }
+    const usuarios = await resp.json();
+    const tabla = document.getElementById('lista-usuarios');
+    tabla.innerHTML = "";
 
-    async function borrarP(id) {
-        if (confirm("¿Borrar?")) {
-            await fetch(`${API_URL}/api/productos/${id}`, { method: 'DELETE', headers: { 'Authorization': AUTH_HEADER } });
-            cargarProductos();
-        }
-    }
+    usuarios.forEach(u => {
+        tabla.innerHTML += `<tr>
+            <td>${u.id}</td>
+            <td>${u.username}</td>
+            <td>${u.rol}</td>
+            <td>-</td>
+        </tr>`;
+    });
+}
 
-    function limpiarP() {
-        document.getElementById('p-id').value = "";
-        document.getElementById('p-codigo').value = "";
-        document.getElementById('p-nombre').value = "";
-        document.getElementById('p-cant').value = "";
-        document.getElementById('p-precio').value = "";
-        document.getElementById('btn-guardar-prod').innerText = "Guardar Producto";
-    }
-
-    async function cargarUsuarios() {
-        const resp = await fetch(`${API_URL}/api/usuarios`, { headers: { 'Authorization': AUTH_HEADER } });
-        const users = await resp.json();
-        const esAdmin = ["ADMIN", "SUPERADMIN"].includes(ROL_ACTUAL);
-        document.getElementById('lista-usuarios').innerHTML = users.map(u => `
-            <tr>
-                <td>${u.id}</td><td>${u.username}</td><td>${u.rol}</td>
-                <td>${esAdmin ? `<button class="btn-accion" onclick="borrarU(${u.id})" style="background-color: #dc3545;">🗑️</button>` : 'Lectura'}</td>
-            </tr>`).join('');
-    }
-
-    async function guardarUsuario() {
-        const user = {
-            username: document.getElementById('u-username').value,
-            password: document.getElementById('u-password').value,
-            rol: document.getElementById('u-rol').value
-        };
-        const resp = await fetch(`${API_URL}/api/usuarios`, {
-            method: 'POST',
-            headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
-            body: JSON.stringify(user)
-        });
-        if (resp.ok) { alert("¡Usuario creado!"); cargarUsuarios(); }
-    }
-
-    async function borrarU(id) {
-        if (confirm("¿Borrar usuario?")) {
-            await fetch(`${API_URL}/api/usuarios/${id}`, { method: 'DELETE', headers: { 'Authorization': AUTH_HEADER } });
-            cargarUsuarios();
-        }
-    }
+function cerrarSesion() {
+    location.reload();
+}
 </script>
 </body>
 </html>
