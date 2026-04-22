@@ -19,6 +19,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
+        // Esto permite usar tus contraseñas de texto plano de Neon
         return NoOpPasswordEncoder.getInstance();
     }
 
@@ -29,11 +30,13 @@ public class SecurityConfig {
             // Habilitamos CORS con la configuración de abajo
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/index.html", "/api/usuarios/login").permitAll()
+                .requestMatchers("/", "/index.html", "/static/**", "/api/usuarios/login").permitAll()
                 .anyRequest().authenticated()
             )
+            // CONFIGURACIÓN ANTI-CUADRO NEGRO
             .httpBasic(basic -> basic.authenticationEntryPoint((request, response, authException) -> {
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Sin permiso");
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"error\": \"No autorizado\"}");
             }));
 
         return http.build();
@@ -41,13 +44,12 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        // ESTO DA PERMISO A TU FRONTEND
-        configuration.setAllowedOrigins(Arrays.asList("*")); 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(Arrays.asList("*")); // Permite cualquier origen (Render frontend)
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/**", config);
         return source;
     }
 }
