@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.http.HttpStatus;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 public class SecurityConfig {
@@ -31,10 +32,10 @@ public class SecurityConfig {
                     .policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"))
             )
             .authorizeHttpRequests(auth -> auth
-                // Recursos públicos
+                // Recursos públicos y Login
                 .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/resources/**", "/api/usuarios/login").permitAll()
                 
-                // TABLAS: Permite a cualquier logueado (necesario para que carguen los datos)
+                // TABLAS: Requieren estar logueado
                 .requestMatchers(HttpMethod.GET, "/api/productos/**", "/api/usuarios/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/productos/**", "/api/usuarios/**").authenticated()
                 
@@ -43,14 +44,14 @@ public class SecurityConfig {
                 
                 .anyRequest().authenticated()
             )
-            // IMPORTANTE: Esto habilita que el AUTH_HEADER del JavaScript funcione
-            .httpBasic(Customizer.withDefaults())
-            
-            // Si la API falla, responde con error 401 en vez de mandar el HTML del login
+            // ESTO MATA LA VENTANA GRIS: Si falla, responde 401 en vez de pedir login al navegador
             .exceptionHandling(ex -> ex
-                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                })
             )
-            
+            // Habilita que el AUTH_HEADER del JavaScript funcione
+            .httpBasic(Customizer.withDefaults())
             .formLogin(form -> form.loginPage("/").permitAll())
             .logout(logout -> logout.permitAll());
 
