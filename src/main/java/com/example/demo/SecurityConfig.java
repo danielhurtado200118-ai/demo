@@ -16,25 +16,25 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Usamos NoOp para que acepte "12345" directamente desde Neon
+        // Necesario para que acepte "12345" tal cual está en la base de datos
         return NoOpPasswordEncoder.getInstance();
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) // Permite peticiones POST desde el HTML
-            .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Elimina el error rojo de CORS
+            .csrf(csrf -> csrf.disable()) // Permite peticiones POST
+            .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Arregla el error de CORS
             .headers(headers -> headers
                 .contentSecurityPolicy(csp -> csp
-                    // Permite conectar con Render y ejecutar tus scripts internos
+                    // Permite conectar con Render y usar tus scripts internos
                     .policyDirectives("default-src 'self'; connect-src 'self' https://backend-agricola.onrender.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"))
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/index.html", "/api/usuarios/login").permitAll()
                 .anyRequest().authenticated()
             )
-            .httpBasic(basic -> {}); // Necesario para el AUTH_HEADER del JavaScript
+            .httpBasic(basic -> {}); // Activa la autenticación para el AUTH_HEADER de JS
 
         return http.build();
     }
@@ -42,9 +42,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList("*")); // Permite que tu frontend hable con el backend
+        config.setAllowedOrigins(Arrays.asList("*")); // Permite acceso desde tu sitio de Render
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        config.setAllowCredentials(false);
+        
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
