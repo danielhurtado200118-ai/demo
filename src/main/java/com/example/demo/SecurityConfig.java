@@ -14,10 +14,10 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
-    // ESTO ES LO QUE FALTA: El motor de contraseñas
+    // Esto arregla el error "APPLICATION FAILED TO START"
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Usamos NoOp para que acepte las claves de Neon tal cual (12345)
+        // Permite que entres con "12345" tal cual está en Neon
         return NoOpPasswordEncoder.getInstance();
     }
 
@@ -27,7 +27,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) 
             .cors(cors -> cors.configurationSource(corsConfigurationSource())) 
             .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll() // Permiso total para que entres sin bloqueos
+                .anyRequest().permitAll() // Abre el paso para que no te de error 403
             )
             .headers(headers -> headers.frameOptions(frame -> frame.disable()));
         
@@ -37,7 +37,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("*"));
+        config.setAllowedOrigins(List.of("*")); // Arregla el error de CORS de tus fotos
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
