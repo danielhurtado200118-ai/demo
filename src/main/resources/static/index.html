@@ -1,100 +1,75 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>Sistema Agrícola - Los 3 Patitos</title>
+    <title>Sistema Agrícola</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f4f4f4; padding: 20px; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        body { font-family: sans-serif; padding: 20px; background: #eee; }
+        .box { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 10px; }
         .hidden { display: none; }
-        input, button, select { padding: 12px; margin: 8px 0; width: 100%; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background: #2d5a27; color: white; }
-        .seccion-titulo { border-bottom: 2px solid #2d5a27; color: #2d5a27; margin-top: 30px; }
+        input, button { width: 100%; padding: 10px; margin: 5px 0; }
+        button { background: #28a745; color: white; border: none; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <div id="pantalla-login">
-        <h2 style="color: #2d5a27;">Ingreso al Sistema</h2>
-        <input type="text" id="usuario" placeholder="Usuario">
-        <input type="password" id="clave" placeholder="Contraseña">
-        <button onclick="validarIngreso()">Entrar</button>
-        <p id="error-txt" style="color: red;"></p>
+<div class="box">
+    <div id="p-login">
+        <h2>Login</h2>
+        <input type="text" id="u" placeholder="Usuario">
+        <input type="password" id="p" placeholder="Clave">
+        <button onclick="login()">Entrar</button>
+        <p id="err" style="color:red"></p>
     </div>
 
-    <div id="pantalla-panel" class="hidden">
-        <div style="display: flex; justify-content: space-between;">
-            <h2>Panel de Control Agrícola</h2>
-            <button onclick="location.reload()" style="width: 150px; background: #6c757d;">Cerrar Sesión</button>
-        </div>
-        <p id="status-user" style="background: #e9ecef; padding: 10px;"></p>
-
-        <h3 class="seccion-titulo">Gestión de Inventario</h3>
-        <input type="text" id="p-nombre" placeholder="Nombre del Producto">
-        <input type="number" id="p-cantidad" placeholder="Cantidad">
-        <button onclick="crearProd()">Guardar Producto</button>
+    <div id="p-gestion" class="hidden">
+        <h2>Inventario Agrícola</h2>
+        <input type="text" id="n" placeholder="Nombre">
+        <input type="number" id="c" placeholder="Cantidad">
+        <button onclick="guardar()">Guardar Producto</button>
         <table>
-            <thead><tr><th>Nombre</th><th>Cantidad</th><th>Acciones</th></tr></thead>
-            <tbody id="tabla-prods"></tbody>
+            <thead><tr><th>Nombre</th><th>Cant.</th></tr></thead>
+            <tbody id="lista"></tbody>
         </table>
+        <button onclick="location.reload()" style="background:#666; margin-top:20px;">Salir</button>
     </div>
 </div>
 
 <script>
-    const URL = "https://backend-agricola.onrender.com";
+    const API = "https://backend-agricola.onrender.com";
 
-    async function validarIngreso() {
-        const u = document.getElementById('usuario').value;
-        const c = document.getElementById('clave').value;
-
-        try {
-            const res = await fetch(`${URL}/api/usuarios/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: u, password: c })
-            });
-            const msg = await res.text();
-
-            if (msg.includes("✅")) {
-                document.getElementById('pantalla-login').classList.add('hidden');
-                document.getElementById('pantalla-panel').classList.remove('hidden');
-                document.getElementById('status-user').innerText = `Sesión activa: ${u}`;
-                obtenerProductos();
-            } else {
-                document.getElementById('error-txt').innerText = "Usuario o contraseña incorrectos.";
-            }
-        } catch (e) {
-            document.getElementById('error-txt').innerText = "Error: El servidor no responde.";
+    async function login() {
+        const res = await fetch(API + "/api/usuarios/login", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username: document.getElementById('u').value, password: document.getElementById('p').value})
+        });
+        const txt = await res.text();
+        if(txt.includes("✅")) {
+            document.getElementById('p-login').classList.add('hidden');
+            document.getElementById('p-gestion').classList.remove('hidden');
+            ver();
+        } else {
+            document.getElementById('err').innerText = "Error de acceso";
         }
     }
 
-    async function obtenerProductos() {
-        const res = await fetch(`${URL}/api/productos`);
-        const lista = await res.json();
-        const tbody = document.getElementById('tabla-prods');
-        tbody.innerHTML = "";
-        lista.forEach(p => {
-            tbody.innerHTML += `<tr>
-                <td>${p.nombre}</td>
-                <td>${p.cantidad}</td>
-                <td><button onclick="eliminar(${p.id})" style="background:#dc3545; padding:5px; width:auto;">X</button></td>
-            </tr>`;
-        });
+    async function ver() {
+        const res = await fetch(API + "/api/productos");
+        const datos = await res.json();
+        let h = "";
+        datos.forEach(i => { h += "<tr><td>"+i.nombre+"</td><td>"+i.cantidad+"</td></tr>"; });
+        document.getElementById('lista').innerHTML = h;
     }
 
-    async function crearProd() {
-        const n = document.getElementById('p-nombre').value;
-        const c = document.getElementById('p-cantidad').value;
-        await fetch(`${URL}/api/productos`, {
+    async function guardar() {
+        await fetch(API + "/api/productos", {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre: n, cantidad: parseInt(c) })
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nombre: document.getElementById('n').value, cantidad: parseInt(document.getElementById('c').value)})
         });
-        obtenerProductos();
+        ver();
     }
 </script>
 </body>
