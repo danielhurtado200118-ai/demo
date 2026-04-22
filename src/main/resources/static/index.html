@@ -4,111 +4,97 @@
     <meta charset="UTF-8">
     <title>Sistema Agrícola - Los 3 Patitos</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 40px; }
-        .container { max-width: 850px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f4f4; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .hidden { display: none; }
-        input, button, select { padding: 12px; margin: 10px 0; width: 100%; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        button:hover { background: #218838; }
+        input, button, select { padding: 12px; margin: 8px 0; width: 100%; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         th { background: #2d5a27; color: white; }
-        .header-panel { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2d5a27; margin-bottom: 20px; }
+        .seccion-titulo { border-bottom: 2px solid #2d5a27; color: #2d5a27; margin-top: 30px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div id="pestaña-login">
-        <h2 style="text-align:center; color: #2d5a27;">Ingreso Agrícola</h2>
-        <input type="text" id="user" placeholder="Usuario">
-        <input type="password" id="pass" placeholder="Contraseña">
-        <button onclick="entrarAlSistema()">Iniciar Sesión</button>
-        <p id="error-msg" style="color: red; text-align: center; font-weight: bold;"></p>
+    <div id="pantalla-login">
+        <h2 style="color: #2d5a27;">Ingreso al Sistema</h2>
+        <input type="text" id="usuario" placeholder="Usuario">
+        <input type="password" id="clave" placeholder="Contraseña">
+        <button onclick="validarIngreso()">Entrar</button>
+        <p id="error-txt" style="color: red;"></p>
     </div>
 
-    <div id="pestaña-panel" class="hidden">
-        <div class="header-panel">
-            <h2>Panel de Gestión</h2>
-            <button onclick="location.reload()" style="width: 120px; background: #6c757d;">Salir</button>
+    <div id="pantalla-panel" class="hidden">
+        <div style="display: flex; justify-content: space-between;">
+            <h2>Panel de Control Agrícola</h2>
+            <button onclick="location.reload()" style="width: 150px; background: #6c757d;">Cerrar Sesión</button>
         </div>
-        
-        <p id="msg-bienvenida" style="font-weight: bold; color: #444;"></p>
+        <p id="status-user" style="background: #e9ecef; padding: 10px;"></p>
 
-        <div style="background: #e9f7ef; padding: 15px; border-radius: 8px;">
-            <h3>Registrar Producto</h3>
-            <input type="text" id="p-nombre" placeholder="Nombre del Producto">
-            <input type="number" id="p-cantidad" placeholder="Cantidad">
-            <button onclick="guardarProducto()">Agregar al Inventario</button>
-        </div>
-
+        <h3 class="seccion-titulo">Gestión de Inventario</h3>
+        <input type="text" id="p-nombre" placeholder="Nombre del Producto">
+        <input type="number" id="p-cantidad" placeholder="Cantidad">
+        <button onclick="crearProd()">Guardar Producto</button>
         <table>
-            <thead>
-                <tr><th>Producto</th><th>Cantidad</th><th>Acciones</th></tr>
-            </thead>
-            <tbody id="cuerpo-tabla"></tbody>
+            <thead><tr><th>Nombre</th><th>Cantidad</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-prods"></tbody>
         </table>
     </div>
 </div>
 
 <script>
-    const API = "https://backend-agricola.onrender.com";
+    const URL = "https://backend-agricola.onrender.com";
 
-    async function entrarAlSistema() {
-        const u = document.getElementById('user').value;
-        const p = document.getElementById('pass').value;
+    async function validarIngreso() {
+        const u = document.getElementById('usuario').value;
+        const c = document.getElementById('clave').value;
 
         try {
-            const resp = await fetch(`${API}/api/usuarios/login`, {
+            const res = await fetch(`${URL}/api/usuarios/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: u, password: p })
+                body: JSON.stringify({ username: u, password: c })
             });
-            const data = await resp.text();
+            const msg = await res.text();
 
-            if (data.includes("✅")) {
-                document.getElementById('pestaña-login').classList.add('hidden');
-                document.getElementById('pestaña-panel').classList.remove('hidden');
-                document.getElementById('msg-bienvenida').innerText = `Usuario activo: ${u}`;
-                actualizarTabla();
+            if (msg.includes("✅")) {
+                document.getElementById('pantalla-login').classList.add('hidden');
+                document.getElementById('pantalla-panel').classList.remove('hidden');
+                document.getElementById('status-user').innerText = `Sesión activa: ${u}`;
+                obtenerProductos();
             } else {
-                document.getElementById('error-msg').innerText = "Acceso denegado.";
+                document.getElementById('error-txt').innerText = "Usuario o contraseña incorrectos.";
             }
         } catch (e) {
-            document.getElementById('error-msg').innerText = "Servidor no responde.";
+            document.getElementById('error-txt').innerText = "Error: El servidor no responde.";
         }
     }
 
-    async function actualizarTabla() {
-        const resp = await fetch(`${API}/api/productos`);
-        const productos = await resp.json();
-        const tabla = document.getElementById('cuerpo-tabla');
-        tabla.innerHTML = "";
-        
-        productos.forEach(p => {
-            tabla.innerHTML += `<tr>
+    async function obtenerProductos() {
+        const res = await fetch(`${URL}/api/productos`);
+        const lista = await res.json();
+        const tbody = document.getElementById('tabla-prods');
+        tbody.innerHTML = "";
+        lista.forEach(p => {
+            tbody.innerHTML += `<tr>
                 <td>${p.nombre}</td>
                 <td>${p.cantidad}</td>
-                <td><button onclick="borrar(${p.id})" style="background:#dc3545; padding:5px; width:auto;">Eliminar</button></td>
+                <td><button onclick="eliminar(${p.id})" style="background:#dc3545; padding:5px; width:auto;">X</button></td>
             </tr>`;
         });
     }
 
-    async function guardarProducto() {
+    async function crearProd() {
         const n = document.getElementById('p-nombre').value;
         const c = document.getElementById('p-cantidad').value;
-        
-        await fetch(`${API}/api/productos`, {
+        await fetch(`${URL}/api/productos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ nombre: n, cantidad: parseInt(c) })
         });
-        actualizarTabla();
-    }
-
-    async function borrar(id) {
-        await fetch(`${API}/api/productos/${id}`, { method: 'DELETE' });
-        actualizarTabla();
+        obtenerProductos();
     }
 </script>
 </body>
