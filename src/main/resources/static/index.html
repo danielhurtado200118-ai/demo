@@ -91,28 +91,33 @@
 const API_URL = "https://backend-agricola.onrender.com"; 
 
 let ROL_ACTUAL = "";
-let AUTH_HEADER = ""; // Guardamos la llave para las siguientes peticiones
+let AUTH_HEADER = ""; 
 
 async function ejecutarLogin() {
     const usuario = document.getElementById('user').value;
     const clave = document.getElementById('pass').value;
     
-    // Creamos la autenticación básica
+    // Creamos el encabezado una sola vez
     AUTH_HEADER = 'Basic ' + btoa(usuario + ':' + clave);
 
     try {
         const response = await fetch(`${API_URL}/api/usuarios/login`, {
             method: 'POST',
             headers: { 
-                'Authorization': AUTH_HEADER,
+                'Authorization': AUTH_HEADER, // Enviamos credenciales para que Spring nos deje pasar
                 'Content-Type': 'application/json' 
             },
             body: JSON.stringify({ username: usuario, password: clave })
         });
 
+        if (!response.ok) {
+            document.getElementById('msg-login').innerText = "Credenciales incorrectas o error de acceso";
+            return;
+        }
+
         const texto = await response.text();
         
-        if (response.ok && texto.includes("✅")) {
+        if (texto.includes("✅")) {
             const partes = texto.split("|");
             ROL_ACTUAL = partes[1].toUpperCase().trim();
 
@@ -120,7 +125,6 @@ async function ejecutarLogin() {
             document.getElementById('panel-principal').classList.remove('hidden');
             document.getElementById('info-rol').innerText = "Usuario: " + usuario + " | Rol: " + ROL_ACTUAL;
 
-            // Mostrar módulo de usuarios solo si es Admin
             if (ROL_ACTUAL === "ADMIN" || ROL_ACTUAL === "SUPERADMIN") {
                 document.getElementById('modulo-usuarios').classList.remove('hidden');
             }
@@ -128,10 +132,10 @@ async function ejecutarLogin() {
             cargarProductos();
             cargarUsuarios();
         } else {
-            document.getElementById('msg-login').innerText = "Credenciales incorrectas";
+            document.getElementById('msg-login').innerText = "Error en formato de respuesta del servidor";
         }
     } catch (e) {
-        document.getElementById('msg-login').innerText = "Error de conexión con el servidor";
+        document.getElementById('msg-login').innerText = "No se pudo conectar con el servidor de Render";
     }
 }
 
@@ -175,16 +179,15 @@ async function guardarProducto() {
 
         if (resp.ok) {
             alert("Producto guardado con éxito");
-            cargarProductos(); // Refrescar tabla
-            // Limpiar campos
+            cargarProductos();
             document.getElementById('p-codigo').value = "";
             document.getElementById('p-nombre').value = "";
             document.getElementById('p-cant').value = "";
             document.getElementById('p-precio').value = "";
         } else {
-            alert("Error al guardar: Verifique sus permisos");
+            alert("Error al guardar: Verifique permisos o conexión");
         }
-    } catch (e) { alert("Error de conexión"); }
+    } catch (e) { alert("Error de red al intentar guardar"); }
 }
 
 async function cargarUsuarios() {
@@ -231,9 +234,9 @@ async function guardarUsuario() {
             document.getElementById('u-username').value = "";
             document.getElementById('u-password').value = "";
         } else {
-            alert("Error al crear usuario");
+            alert("No se pudo crear el usuario");
         }
-    } catch (e) { alert("Error de conexión"); }
+    } catch (e) { alert("Error de conexión al crear usuario"); }
 }
 
 function cerrarSesion() {
