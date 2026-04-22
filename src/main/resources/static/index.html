@@ -4,66 +4,38 @@
     <meta charset="UTF-8">
     <title>Sistema Agrícola - Los 3 Patitos</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; padding: 20px; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
-        .hidden { display: none; } 
-        input, button, select { padding: 12px; margin: 10px 0; width: 100%; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background-color: #2e7d32; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 16px; }
-        button:hover { background-color: #1b5e20; }
-        table { width: 100%; border-collapse: collapse; margin-top: 25px; }
-        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; }
+        body { font-family: sans-serif; background-color: #f4f4f4; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
+        input, button { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+        button { background-color: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         th { background-color: #2d5a27; color: white; }
-        .rol-badge { background: #e8f5e9; padding: 6px 12px; border-radius: 50px; font-size: 0.9em; color: #2e7d32; font-weight: 600; }
-        .seccion { border-top: 3px solid #2e7d32; margin-top: 40px; padding-top: 20px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div id="seccion-login">
-        <h2 style="text-align: center; color: #2e7d32;">Acceso al Sistema</h2>
-        <input type="text" id="user" placeholder="Nombre de usuario">
+        <h2>Ingreso al Sistema</h2>
+        <input type="text" id="user" placeholder="Usuario">
         <input type="password" id="pass" placeholder="Contraseña">
-        <button onclick="ejecutarLogin()">Iniciar Sesión</button>
-        <p id="msg-login" style="color: #d32f2f; text-align: center;"></p>
+        <button onclick="ejecutarLogin()">Entrar</button>
+        <p id="msg-login" style="color: red;"></p>
     </div>
 
     <div id="panel-principal" class="hidden">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="color: #2e7d32;">Panel Agrícola</h2>
-            <button onclick="location.reload()" style="width: auto; padding: 10px 20px; background-color: #546e7a;">Cerrar Sesión</button>
+        <div style="display: flex; justify-content: space-between;">
+            <h2>Panel Agrícola</h2>
+            <button onclick="location.reload()" style="width: 100px; background-color: #6c757d;">Salir</button>
         </div>
-        <p><span id="info-rol" class="rol-badge"></span></p>
-
-        <div id="modulo-productos" class="seccion">
-            <h3>Inventario de Productos</h3>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <input type="text" id="p-codigo" placeholder="Código">
-                <input type="text" id="p-nombre" placeholder="Nombre">
-                <input type="number" id="p-cant" placeholder="Cantidad">
-                <input type="number" id="p-precio" placeholder="Precio">
-            </div>
-            <button onclick="guardarProducto()">Registrar en Inventario</button>
-            <table>
-                <thead><tr><th>Código</th><th>Nombre</th><th>Cantidad</th><th>Precio</th></tr></thead>
-                <tbody id="lista-productos"></tbody>
-            </table>
-        </div>
-
-        <div id="modulo-usuarios" class="seccion hidden">
-            <h3>Lista de Usuarios</h3>
-            <table>
-                <thead><tr><th>ID</th><th>Usuario</th><th>Rol</th></tr></thead>
-                <tbody id="lista-usuarios"></tbody>
-            </table>
-        </div>
+        <div id="lista-productos">Cargando productos...</div>
     </div>
 </div>
 
 <script>
-const API_URL = window.location.origin; 
-let AUTH_HEADER = ""; 
-let ROL_ACTUAL = "";
+let AUTH_HEADER = "";
 
 async function ejecutarLogin() {
     const user = document.getElementById('user').value;
@@ -71,69 +43,45 @@ async function ejecutarLogin() {
     AUTH_HEADER = 'Basic ' + btoa(user + ':' + pass);
 
     try {
-        const resp = await fetch(`${API_URL}/api/usuarios/login`, {
+        const resp = await fetch('/api/usuarios/login', {
             method: 'POST',
-            headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
+            headers: { 
+                'Authorization': AUTH_HEADER,
+                'Content-Type': 'application/json' 
+            },
             body: JSON.stringify({ username: user, password: pass })
         });
 
         const texto = await resp.text();
         if (resp.ok && texto.includes("✅")) {
-            ROL_ACTUAL = texto.split("|")[1].toUpperCase().trim();
             document.getElementById('seccion-login').classList.add('hidden');
             document.getElementById('panel-principal').classList.remove('hidden');
-            document.getElementById('info-rol').innerText = "Conectado como: " + user + " (" + ROL_ACTUAL + ")";
-            
-            if (ROL_ACTUAL === "ADMIN" || ROL_ACTUAL === "SUPERADMIN") {
-                document.getElementById('modulo-usuarios').classList.remove('hidden');
-            }
             cargarProductos();
-            cargarUsuarios();
         } else {
-            document.getElementById('msg-login').innerText = "Usuario o clave incorrectos";
+            document.getElementById('msg-login').innerText = "Credenciales incorrectas";
         }
-    } catch (err) { document.getElementById('msg-login').innerText = "Error de conexión con el servidor"; }
+    } catch (e) {
+        document.getElementById('msg-login').innerText = "Error de conexión";
+    }
 }
 
 async function cargarProductos() {
-    const resp = await fetch(`${API_URL}/api/productos`, { headers: { 'Authorization': AUTH_HEADER } });
-    const contentType = resp.headers.get("content-type");
-    
-    if (resp.ok && contentType && contentType.includes("application/json")) {
-        const data = await resp.json();
-        document.getElementById('lista-productos').innerHTML = data.map(p => 
-            `<tr><td>${p.codigo}</td><td>${p.nombre}</td><td>${p.cantidad}</td><td>$${p.precio}</td></tr>`
-        ).join('');
+    try {
+        const resp = await fetch('/api/productos', {
+            headers: { 'Authorization': AUTH_HEADER }
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            let html = "<table><tr><th>Código</th><th>Nombre</th><th>Cantidad</th><th>Precio</th></tr>";
+            data.forEach(p => {
+                html += `<tr><td>${p.codigo}</td><td>${p.nombre}</td><td>${p.cantidad}</td><td>$${p.precio}</td></tr>`;
+            });
+            html += "</table>";
+            document.getElementById('lista-productos').innerHTML = html;
+        }
+    } catch (e) {
+        document.getElementById('lista-productos').innerHTML = "Error al cargar datos.";
     }
-}
-
-async function cargarUsuarios() {
-    if (ROL_ACTUAL !== "ADMIN" && ROL_ACTUAL !== "SUPERADMIN") return;
-    const resp = await fetch(`${API_URL}/api/usuarios`, { headers: { 'Authorization': AUTH_HEADER } });
-    const contentType = resp.headers.get("content-type");
-
-    if (resp.ok && contentType && contentType.includes("application/json")) {
-        const data = await resp.json();
-        document.getElementById('lista-usuarios').innerHTML = data.map(u => 
-            `<tr><td>${u.id}</td><td>${u.username}</td><td>${u.rol}</td></tr>`
-        ).join('');
-    }
-}
-
-async function guardarProducto() {
-    const p = {
-        codigo: document.getElementById('p-codigo').value,
-        nombre: document.getElementById('p-nombre').value,
-        cantidad: parseInt(document.getElementById('p-cant').value) || 0,
-        precio: parseFloat(document.getElementById('p-precio').value) || 0
-    };
-    const resp = await fetch(`${API_URL}/api/productos`, {
-        method: 'POST',
-        headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
-        body: JSON.stringify(p)
-    });
-    if (resp.ok) { alert("Producto guardado"); cargarProductos(); }
-    else { alert("No tienes permisos para guardar"); }
 }
 </script>
 </body>
