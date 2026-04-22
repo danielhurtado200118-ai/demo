@@ -14,19 +14,19 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    // ESTO ARREGLA EL ERROR DE LA IMAGEN: Proporciona el "bean" PasswordEncoder
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Esto arregla el error de "Parameter 3 of constructor required a bean"
-        return new BCryptPasswordEncoder(12);
+        return new BCryptPasswordEncoder();
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) // Necesario para que el POST de VS Code/Render funcione
-            .cors(cors -> {}) 
+            .csrf(csrf -> csrf.disable()) // Desactivar para permitir login desde el navegador
+            .cors(cors -> {}) // Habilitar CORS
             .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll() // Permiso total para evitar el 403 en la defensa
+                .anyRequest().permitAll() // Permitir todo temporalmente para que tu demo funcione
             );
         return http.build();
     }
