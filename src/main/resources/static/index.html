@@ -2,18 +2,17 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Sistema Agrícola - Los 3 Patitos (Fase 1)</title>
+    <title>Sistema Agrícola - Los 3 Patitos</title>
     <style>
         body { font-family: sans-serif; background-color: #f4f4f4; padding: 20px; }
         .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         .hidden { display: none; } 
         input, button, select { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
         button { background-color: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; }
-        button:hover { background-color: #218838; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         th { background-color: #2d5a27; color: white; }
-        .rol-badge { background: #e2e2e2; padding: 5px; border-radius: 4px; font-size: 0.8em; font-weight: bold; color: #333; }
+        .rol-badge { background: #e2e2e2; padding: 5px; border-radius: 4px; font-weight: bold; }
         .seccion { border-top: 2px solid #2d5a27; margin-top: 30px; padding-top: 20px; }
     </style>
 </head>
@@ -31,7 +30,7 @@
     <div id="panel-principal" class="hidden">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2>Panel de Control Agrícola</h2>
-            <button onclick="cerrarSesion()" style="width: 150px; background-color: #6c757d;">Cerrar Sesión</button>
+            <button onclick="location.reload()" style="width: 150px; background-color: #6c757d;">Cerrar Sesión</button>
         </div>
         <p>Sesión activa: <span id="info-rol" class="rol-badge"></span></p>
 
@@ -45,9 +44,7 @@
                 <button onclick="guardarProducto()">Guardar Producto</button>
             </div>
             <table>
-                <thead>
-                    <tr><th>Código</th><th>Nombre</th><th>Cant.</th><th>Precio</th></tr>
-                </thead>
+                <thead><tr><th>Código</th><th>Nombre</th><th>Cant.</th><th>Precio</th></tr></thead>
                 <tbody id="lista-productos"></tbody>
             </table>
         </div>
@@ -55,8 +52,8 @@
         <div id="modulo-usuarios" class="seccion hidden">
             <h3>Gestión de Usuarios</h3>
             <div>
-                <input type="text" id="u-username" placeholder="Nombre de Usuario">
-                <input type="password" id="u-password" placeholder="Contraseña">
+                <input type="text" id="u-username" placeholder="Usuario">
+                <input type="password" id="u-password" placeholder="Clave">
                 <select id="u-rol">
                     <option value="REGISTRADOR">REGISTRADOR</option>
                     <option value="ADMIN">ADMIN</option>
@@ -64,10 +61,8 @@
                 </select>
                 <button onclick="guardarUsuario()" style="background-color: #007bff;">Crear Usuario</button>
             </div>
-            <table>
-                <thead>
-                    <tr><th>ID</th><th>Usuario</th><th>Rol</th></tr>
-                </thead>
+            <table style="width: 100%;">
+                <thead><tr><th>ID</th><th>Usuario</th><th>Rol</th></tr></thead>
                 <tbody id="lista-usuarios"></tbody>
             </table>
         </div>
@@ -77,20 +72,20 @@
 <script>
 const API_URL = "https://backend-agricola.onrender.com"; 
 let ROL_ACTUAL = "";
+let AUTH_HEADER = ""; 
 
-// --- LA FUNCIÓN QUE ME PEDISTE ---
 async function ejecutarLogin() {
     const usuario = document.getElementById('user').value;
     const clave = document.getElementById('pass').value;
     
-    // Genera la llave de acceso básica
-    const authHeader = 'Basic ' + btoa(usuario + ':' + clave);
+    // Generar llave de acceso
+    AUTH_HEADER = 'Basic ' + btoa(usuario + ':' + clave);
 
     try {
         const response = await fetch(`${API_URL}/api/usuarios/login`, {
             method: 'POST',
             headers: { 
-                'Authorization': authHeader, // Envía la llave al servidor
+                'Authorization': AUTH_HEADER,
                 'Content-Type': 'application/json' 
             },
             body: JSON.stringify({ username: usuario, password: clave })
@@ -99,8 +94,6 @@ async function ejecutarLogin() {
         if (response.ok) {
             const texto = await response.text();
             if (texto.includes("✅")) {
-                window.AUTH_HEADER = authHeader; // Guarda la llave para cargar productos
-                
                 const partes = texto.split("|");
                 ROL_ACTUAL = partes[1].toUpperCase().trim();
 
@@ -112,20 +105,19 @@ async function ejecutarLogin() {
                     document.getElementById('modulo-usuarios').classList.remove('hidden');
                     cargarUsuarios();
                 }
-
                 cargarProductos();
             }
         } else {
             document.getElementById('msg-login').innerText = "Credenciales incorrectas";
         }
     } catch (e) {
-        document.getElementById('msg-login').innerText = "Error de conexión con el servidor";
+        document.getElementById('msg-login').innerText = "Error de conexión con Render";
     }
 }
 
 async function cargarProductos() {
     const resp = await fetch(`${API_URL}/api/productos`, {
-        headers: { 'Authorization': window.AUTH_HEADER }
+        headers: { 'Authorization': AUTH_HEADER }
     });
     if (resp.ok) {
         const productos = await resp.json();
@@ -144,18 +136,15 @@ async function guardarProducto() {
     };
     const resp = await fetch(`${API_URL}/api/productos`, {
         method: 'POST',
-        headers: { 
-            'Authorization': window.AUTH_HEADER,
-            'Content-Type': 'application/json' 
-        },
+        headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
         body: JSON.stringify(prod)
     });
-    if (resp.ok) { alert("¡Guardado!"); cargarProductos(); }
+    if (resp.ok) { alert("¡Producto Guardado!"); cargarProductos(); }
 }
 
 async function cargarUsuarios() {
     const resp = await fetch(`${API_URL}/api/usuarios`, {
-        headers: { 'Authorization': window.AUTH_HEADER }
+        headers: { 'Authorization': AUTH_HEADER }
     });
     if (resp.ok) {
         const usuarios = await resp.json();
@@ -173,16 +162,11 @@ async function guardarUsuario() {
     };
     const resp = await fetch(`${API_URL}/api/usuarios`, {
         method: 'POST',
-        headers: { 
-            'Authorization': window.AUTH_HEADER,
-            'Content-Type': 'application/json' 
-        },
+        headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
         body: JSON.stringify(user)
     });
     if (resp.ok) { alert("¡Usuario Creado!"); cargarUsuarios(); }
 }
-
-function cerrarSesion() { location.reload(); }
 </script>
 </body>
 </html>
