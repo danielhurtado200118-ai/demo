@@ -91,24 +91,37 @@
 </div>
 
 <script>
-    let ROL_ACTUAL = "";
+// Detecta automáticamente la URL del servidor
+const API_URL = window.location.origin; 
 
-    async function ejecutarLogin() {
-        const usuario = document.getElementById('user').value;
-        const clave = document.getElementById('pass').value;
+let ROL_ACTUAL = "";
+let AUTH_HEADER = ""; 
 
-        const response = await fetch('/api/usuarios/login', {
+async function ejecutarLogin() {
+    const usuario = document.getElementById('user').value;
+    const clave = document.getElementById('pass').value;
+
+    // Generar credencial para Spring Security
+    AUTH_HEADER = 'Basic ' + btoa(usuario + ':' + clave);
+
+    try {
+        const response = await fetch(`${API_URL}/api/usuarios/login`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Authorization': AUTH_HEADER,
+                'Content-Type': 'application/json' 
+            },
             body: JSON.stringify({ username: usuario, password: clave })
         });
 
         const texto = await response.text();
         
-        if (texto.includes("✅")) {
+        if (response.ok && texto.includes("✅")) {
             const partes = texto.split("|");
             ROL_ACTUAL = partes[1].toUpperCase();
-            localStorage.setItem('token_finca', partes[2]);
+
+            // Guardar para que las tablas usen la misma "llave"
+            localStorage.setItem('userAuth', AUTH_HEADER);
 
             document.getElementById('seccion-login').classList.add('hidden');
             document.getElementById('panel-principal').classList.remove('hidden');
@@ -116,186 +129,83 @@
 
             configurarVistaPorRol();
             cargarProductos();
-            
-            // AHORA: Registrador y Auditor también cargan la lista de usuarios (solo lectura)
-            const rolesConAccesoALista = ["SUPERADMIN", "ADMIN", "AUDITOR", "REGISTRADOR"];
-            if (rolesConAccesoALista.includes(ROL_ACTUAL)) {
-                cargarUsuarios();
-            }
+            cargarUsuarios();
         } else {
-            document.getElementById('msg-login').innerText = "Credenciales incorrectas";
+            document.getElementById('msg-login').innerText = "Credenciales incorrectas o sin permiso";
         }
+    } catch (err) {
+        document.getElementById('msg-login').innerText = "Error de conexión con el servidor";
     }
+}
 
-    function configurarVistaPorRol() {
-        // Reiniciar visibilidad de módulos comunes
-        document.getElementById('modulo-usuarios').classList.add('hidden');
-        document.getElementById('form-usuario-container').classList.add('hidden');
-        document.getElementById('form-producto-container').classList.add('hidden');
-
-        if (ROL_ACTUAL === "SUPERADMIN" || ROL_ACTUAL === "ADMIN") {
-            document.getElementById('modulo-usuarios').classList.remove('hidden');
-            document.getElementById('form-usuario-container').classList.remove('hidden');
-            document.getElementById('form-producto-container').classList.remove('hidden');
-        } 
-        else if (ROL_ACTUAL === "REGISTRADOR") {
-            // El registrador VE usuarios (lectura) y GESTIONA productos
-            document.getElementById('modulo-usuarios').classList.remove('hidden');
-            document.getElementById('form-producto-container').classList.remove('hidden');
-        } 
-        else if (ROL_ACTUAL === "AUDITOR") {
-            // El auditor VE ambos pero no tiene formularios de creación
-            document.getElementById('modulo-usuarios').classList.remove('hidden');
-        }
+function configurarVistaPorRol() {
+    // Solo mostramos gestión de usuarios a SUPERADMIN y ADMIN
+    const moduloU = document.getElementById('modulo-usuarios');
+    if (ROL_ACTUAL === "SUPERADMIN" || ROL_ACTUAL === "ADMIN") {
+        moduloU.classList.remove('hidden');
+    } else {
+        moduloU.classList.add('hidden');
     }
+}
 
-    // --- LÓGICA DE PRODUCTOS ---
-    async function cargarProductos() {
-        const resp = await fetch('/api/productos');
+async function cargarProductos() {
+    try {
+        const resp = await fetch(`${API_URL}/api/productos`, {
+            headers: { 'Authorization': AUTH_HEADER }
+        });
+        
+        if (!resp.ok) throw new Error("Error en la carga");
+
         const productos = await resp.json();
         const tabla = document.getElementById('lista-productos');
-        tabla.innerHTML = ""; 
-
-        const puedeEditar = (ROL_ACTUAL === "SUPERADMIN" || ROL_ACTUAL === "REGISTRADOR" || ROL_ACTUAL === "ADMIN");
+        tabla.innerHTML = "";
 
         productos.forEach(p => {
-            let botones = puedeEditar ? `
-                <td>
-                    <button class="btn-accion" onclick="prepararEdicionProd(${p.id},'${p.codigo}','${p.nombre}',${p.cantidad},${p.precio})" style="background-color: #ffc107; color: black;">✏️</button>
-                    <button class="btn-accion" onclick="eliminarProducto(${p.id})" style="background-color: #dc3545;">🗑️</button>
-                </td>
-            ` : "<td>Solo lectura</td>";
-
             tabla.innerHTML += `<tr>
-                <td>${p.codigo}</td><td>${p.nombre}</td><td>${p.cantidad}</td><td>$${p.precio}</td>${botones}
+                <td>${p.codigo}</td>
+                <td>${p.nombre}</td>
+                <td>${p.cantidad}</td>
+                <td>$${p.precio}</td>
+                <td>-</td>
             </tr>`;
         });
+    } catch (e) {
+        console.error("Error al cargar productos:", e);
     }
+}
 
-    async function guardarProducto() {
-        const id = document.getElementById('p-id').value;
-        const prod = {
-            codigo: document.getElementById('p-codigo').value,
-            nombre: document.getElementById('p-nombre').value,
-            cantidad: parseInt(document.getElementById('p-cant').value),
-            precio: parseFloat(document.getElementById('p-precio').value)
-        };
+async function cargarUsuarios() {
+    // Si no tiene permiso, ni siquiera intenta pedir los datos
+    if (ROL_ACTUAL !== "SUPERADMIN" && ROL_ACTUAL !== "ADMIN") return;
 
-        const metodo = id ? 'PUT' : 'POST';
-        const url = id ? `/api/productos/${id}` : '/api/productos';
-
-        const resp = await fetch(url, {
-            method: metodo,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(prod)
+    try {
+        const resp = await fetch(`${API_URL}/api/usuarios`, {
+            headers: { 'Authorization': AUTH_HEADER }
         });
+        
+        if (!resp.ok) return;
 
-        if (resp.ok) {
-            limpiarFormProducto();
-            cargarProductos();
-            alert("¡Producto guardado!");
-        } else {
-            alert("Error de permisos en el servidor.");
-        }
-    }
+        const usuarios = await resp.json();
+        const tabla = document.getElementById('lista-usuarios');
+        tabla.innerHTML = "";
 
-    function prepararEdicionProd(id, cod, nom, cant, pre) {
-        document.getElementById('p-id').value = id;
-        document.getElementById('p-codigo').value = cod;
-        document.getElementById('p-nombre').value = nom;
-        document.getElementById('p-cant').value = cant;
-        document.getElementById('p-precio').value = pre;
-        document.getElementById('btn-guardar-prod').innerText = "Actualizar Producto";
-    }
-
-    async function eliminarProducto(id) {
-        if (confirm("¿Eliminar producto?")) {
-            const resp = await fetch(`/api/productos/${id}`, { method: 'DELETE' });
-            if (resp.ok) cargarProductos();
-            else alert("No tienes permisos para eliminar.");
-        }
-    }
-
-    function limpiarFormProducto() {
-        document.getElementById('p-id').value = "";
-        document.getElementById('p-codigo').value = "";
-        document.getElementById('p-nombre').value = "";
-        document.getElementById('p-cant').value = "";
-        document.getElementById('p-precio').value = "";
-        document.getElementById('btn-guardar-prod').innerText = "Guardar Producto";
-    }
-
-    // --- LÓGICA DE USUARIOS ---
-    async function cargarUsuarios() {
-        try {
-            const resp = await fetch('/api/usuarios');
-            if (!resp.ok) return; 
-            
-            const usuarios = await resp.json();
-            const tabla = document.getElementById('lista-usuarios');
-            tabla.innerHTML = "";
-
-            const esSuper = (ROL_ACTUAL === "SUPERADMIN" || ROL_ACTUAL === "ADMIN");
-
-            usuarios.forEach(u => {
-                let botones = esSuper ? `
-                    <td>
-                        <button class="btn-accion" onclick="eliminarUsuario(${u.id})" style="background-color: #dc3545;">Eliminar</button>
-                    </td>
-                ` : "<td>Lectura</td>";
-
-                tabla.innerHTML += `<tr>
-                    <td>${u.id}</td>
-                    <td>${u.username}</td>
-                    <td>${u.rol || 'N/A'}</td> 
-                    ${botones}
-                </tr>`;
-            });
-        } catch (e) {
-            console.error("Error al cargar lista:", e);
-        }
-    }
-
-    async function guardarUsuario() {
-        const userObj = {
-            username: document.getElementById('u-username').value,
-            password: document.getElementById('u-password').value,
-            rol: document.getElementById('u-rol').value
-        };
-
-        if (!userObj.username || !userObj.password) {
-            alert("Completa los datos");
-            return;
-        }
-
-        const resp = await fetch('/api/usuarios', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userObj)
+        usuarios.forEach(u => {
+            tabla.innerHTML += `<tr>
+                <td>${u.id}</td>
+                <td>${u.username}</td>
+                <td>${u.rol}</td>
+                <td>-</td>
+            </tr>`;
         });
-
-        if (resp.ok) {
-            alert("Usuario procesado");
-            document.getElementById('u-username').value = "";
-            document.getElementById('u-password').value = "";
-            setTimeout(cargarUsuarios, 300);
-        } else {
-            alert("Acceso denegado: Solo administradores.");
-        }
+    } catch (e) {
+        console.error("Error al cargar usuarios:", e);
     }
+}
 
-    async function eliminarUsuario(id) {
-        if (confirm("¿Eliminar usuario?")) {
-            const resp = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
-            if (resp.ok) cargarUsuarios();
-            else alert("Error: No tienes permisos.");
-        }
-    }
-
-    function cerrarSesion() {
-        localStorage.removeItem('token_finca');
-        location.reload();
-    }
+function cerrarSesion() {
+    localStorage.removeItem('userAuth');
+    location.reload();
+}
 </script>
 </body>
 </html>
