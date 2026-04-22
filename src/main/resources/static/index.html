@@ -46,7 +46,7 @@
             <tbody id="lista-productos"></tbody>
         </table>
 
-        <div id="modulo-usuarios">
+        <div id="modulo-usuarios" class="hidden">
             <h3>Gestión de Usuarios</h3>
             <input type="text" id="u-nombre" placeholder="Nuevo Usuario">
             <input type="password" id="u-pass" placeholder="Clave">
@@ -56,6 +56,10 @@
                 <option value="SUPERADMIN">SUPERADMIN</option>
             </select>
             <button class="btn-blue" onclick="guardarUsuario()">Crear Usuario</button>
+            <table>
+                <thead><tr><th>ID</th><th>Usuario</th><th>Rol</th></tr></thead>
+                <tbody id="lista-usuarios"></tbody>
+            </table>
         </div>
 
         <button class="btn-gray" onclick="location.reload()">Cerrar Sesión</button>
@@ -65,20 +69,18 @@
 <script>
     const API_URL = "https://backend-agricola.onrender.com"; 
     let ROL_ACTUAL = "";
-    let AUTH_HEADER = ""; // Guardaremos la "llave" aquí
+    let AUTH_HEADER = ""; 
 
     async function ejecutarLogin() {
         const usuario = document.getElementById('user').value;
         const clave = document.getElementById('pass').value;
-        
-        // ESTO ES LO QUE FALTA: Crea la credencial Base64 para Spring Security
         AUTH_HEADER = 'Basic ' + btoa(usuario + ':' + clave);
 
         try {
             const resp = await fetch(`${API_URL}/api/usuarios/login`, {
                 method: 'POST',
                 headers: { 
-                    'Authorization': AUTH_HEADER, // Enviamos la credencial
+                    'Authorization': AUTH_HEADER,
                     'Content-Type': 'application/json' 
                 },
                 body: JSON.stringify({ username: usuario, password: clave })
@@ -95,9 +97,12 @@
                 document.getElementById('info-rol').innerText = `Usuario: ${usuario} | Rol: ${ROL_ACTUAL}`;
 
                 cargarProductos();
-                if (ROL_ACTUAL.includes("ADMIN")) cargarUsuarios();
+                if (ROL_ACTUAL.includes("ADMIN") || ROL_ACTUAL.includes("SUPERADMIN")) {
+                    document.getElementById('modulo-usuarios').classList.remove('hidden');
+                    cargarUsuarios();
+                }
             } else {
-                document.getElementById('msg-login').innerText = "Credenciales incorrectas (Verifica en Neon)";
+                document.getElementById('msg-login').innerText = "Credenciales incorrectas";
             }
         } catch (e) {
             document.getElementById('msg-login').innerText = "Error de conexión";
@@ -106,7 +111,7 @@
 
     async function cargarProductos() {
         const resp = await fetch(`${API_URL}/api/productos`, {
-            headers: { 'Authorization': AUTH_HEADER } // Usamos la llave para pedir datos
+            headers: { 'Authorization': AUTH_HEADER }
         });
         const prods = await resp.json();
         document.getElementById('lista-productos').innerHTML = prods.map(p => `
@@ -114,15 +119,54 @@
         `).join('');
     }
 
+    async function guardarProducto() {
+        const prod = {
+            codigo: document.getElementById('p-codigo').value,
+            nombre: document.getElementById('p-nombre').value,
+            cantidad: parseInt(document.getElementById('p-cant').value),
+            precio: parseFloat(document.getElementById('p-precio').value)
+        };
+
+        const resp = await fetch(`${API_URL}/api/productos`, {
+            method: 'POST',
+            headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
+            body: JSON.stringify(prod)
+        });
+
+        if (resp.ok) {
+            alert("Producto guardado!");
+            cargarProductos();
+        }
+    }
+
     async function cargarUsuarios() {
         const resp = await fetch(`${API_URL}/api/usuarios`, {
             headers: { 'Authorization': AUTH_HEADER }
         });
         const users = await resp.json();
-        // Lógica para mostrar usuarios...
+        document.getElementById('lista-usuarios').innerHTML = users.map(u => `
+            <tr><td>${u.id}</td><td>${u.username}</td><td>${u.rol}</td></tr>
+        `).join('');
     }
 
-    // El resto de funciones también deben llevar el header 'Authorization': AUTH_HEADER
+    async function guardarUsuario() {
+        const nuevoU = {
+            username: document.getElementById('u-nombre').value,
+            password: document.getElementById('u-pass').value,
+            rol: document.getElementById('u-rol').value
+        };
+
+        const resp = await fetch(`${API_URL}/api/usuarios`, {
+            method: 'POST',
+            headers: { 'Authorization': AUTH_HEADER, 'Content-Type': 'application/json' },
+            body: JSON.stringify(nuevoU)
+        });
+
+        if (resp.ok) {
+            alert("Usuario creado!");
+            cargarUsuarios();
+        }
+    }
 </script>
 </body>
 </html>
