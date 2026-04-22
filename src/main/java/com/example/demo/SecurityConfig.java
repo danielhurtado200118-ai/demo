@@ -19,7 +19,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Permite usar las contraseñas tal cual están en tu base de datos de Neon
+        // Permite usar tus contraseñas antiguas de Neon
         return NoOpPasswordEncoder.getInstance();
     }
 
@@ -27,13 +27,13 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
-            // Habilita la configuración de CORS definida abajo
+            // ESTO ELIMINA EL ERROR ROJO DE CORS
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/index.html", "/api/usuarios/login").permitAll()
                 .anyRequest().authenticated()
             )
-            // Evita que aparezca el cuadro de "Acceder" del navegador
+            // ESTO EVITA QUE SALGA EL CUADRO NEGRO DEL NAVEGADOR
             .httpBasic(basic -> basic.authenticationEntryPoint((request, response, authException) -> {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.getWriter().write("{\"error\": \"No autorizado\"}");
@@ -45,7 +45,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList("*")); // Permite que tu frontend se conecte
+        config.setAllowedOrigins(Arrays.asList("*")); 
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
