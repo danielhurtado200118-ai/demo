@@ -17,7 +17,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // CUMPLE RF-02: BCrypt con factor de costo 12
+        // CUMPLE RF-02: BCrypt factor 12
         return new BCryptPasswordEncoder(12);
     }
 
@@ -34,13 +34,18 @@ public class SecurityConfig {
             }))
             .headers(headers -> headers
                 .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"))
-                .frameOptions(frame -> frame.deny())
-                .contentTypeOptions(Customizer.withDefaults())
+                .frameOptions(f -> f.deny())
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/index.html", "/api/usuarios/login").permitAll()
+                
+                // RBAC: Roles según tu HTML
                 .requestMatchers("/api/usuarios/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
                 .requestMatchers("/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN", "REGISTRADOR")
+                
+                // Permitir que el Auditor lea (GET) pero no modifique
+                .requestMatchers("/api/**").hasAuthority("AUDITOR")
+                
                 .anyRequest().authenticated()
             )
             .httpBasic(Customizer.withDefaults());
