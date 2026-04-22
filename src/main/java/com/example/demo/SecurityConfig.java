@@ -27,20 +27,20 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .headers(headers -> headers.frameOptions(frame -> frame.deny()))
             .authorizeHttpRequests(auth -> auth
-                // Permitir acceso a la web y al login
                 .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/api/usuarios/login").permitAll()
-                // Proteger las APIs de datos
                 .requestMatchers(HttpMethod.GET, "/api/productos/**", "/api/usuarios/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/productos/**", "/api/usuarios/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
                 .anyRequest().authenticated()
             )
-            // ESTO ELIMINA EL CUADRO NEGRO (POPUP) DEFINITIVAMENTE
+            // CONFIGURACIÓN ANTI-POPUP NEGRO
             .httpBasic(basic -> basic.authenticationEntryPoint((request, response, authException) -> {
-                // Enviamos 401 pero SIN el encabezado WWW-Authenticate
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, authException.getMessage());
+                // Forzamos 401 pero sin el encabezado que dispara el cuadro del navegador
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.addHeader("X-Suppress-Basic", "true"); 
+                response.getWriter().write("{\"error\": \"Sesion requerida\"}");
             }))
-            .formLogin(form -> form.disable()) // Deshabilitamos el form de Spring para usar el tuyo
+            .formLogin(form -> form.disable())
             .logout(logout -> logout.permitAll());
 
         return http.build();
