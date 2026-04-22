@@ -8,6 +8,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.http.HttpStatus;
 
 @Configuration
 public class SecurityConfig {
@@ -29,20 +31,25 @@ public class SecurityConfig {
                     .policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"))
             )
             .authorizeHttpRequests(auth -> auth
-                // ESTO ARREGLA EL TEXTO DERRAMADO: Permitimos acceso total a archivos JS y CSS
+                // Recursos públicos
                 .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/resources/**", "/api/usuarios/login").permitAll()
                 
-                // TABLAS: Cualquier usuario logueado puede ver los datos
+                // TABLAS: Permite a cualquier logueado (necesario para que carguen los datos)
                 .requestMatchers(HttpMethod.GET, "/api/productos/**", "/api/usuarios/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/productos/**", "/api/usuarios/**").authenticated()
                 
-                // Solo Admin/SuperAdmin borran
+                // Solo Admin/SuperAdmin pueden borrar
                 .requestMatchers(HttpMethod.DELETE, "/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
                 
                 .anyRequest().authenticated()
             )
-            // QUITA LA VENTANA GRIS: Deshabilitamos el popup de "Acceder"
-            .httpBasic(basic -> basic.disable())
+            // IMPORTANTE: Esto habilita que el AUTH_HEADER del JavaScript funcione
+            .httpBasic(Customizer.withDefaults())
+            
+            // Si la API falla, responde con error 401 en vez de mandar el HTML del login
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+            )
             
             .formLogin(form -> form.loginPage("/").permitAll())
             .logout(logout -> logout.permitAll());
