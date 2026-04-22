@@ -8,7 +8,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.config.http.SessionCreationPolicy;
 
 @Configuration
 public class SecurityConfig {
@@ -22,10 +21,6 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
-            // 1. Mantenemos la sesión activa en el navegador para que no de error 401
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-            )
             .headers(headers -> headers
                 .contentTypeOptions(Customizer.withDefaults())
                 .frameOptions(frame -> frame.deny())
@@ -34,27 +29,23 @@ public class SecurityConfig {
                     .policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"))
             )
             .authorizeHttpRequests(auth -> auth
-                // Rutas que no necesitan login
-                .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/api/usuarios/login").permitAll()
+                // ESTO ARREGLA EL TEXTO DERRAMADO: Permitimos acceso total a archivos JS y CSS
+                .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/resources/**", "/api/usuarios/login").permitAll()
                 
-                // VER TABLAS (GET): Permitimos a cualquier usuario logueado para llenar la tabla
+                // TABLAS: Cualquier usuario logueado puede ver los datos
                 .requestMatchers(HttpMethod.GET, "/api/productos/**", "/api/usuarios/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/productos/**", "/api/usuarios/**").authenticated()
                 
-                // ACCIONES: Mantenemos las reglas de la UTN
-                .requestMatchers(HttpMethod.POST, "/api/productos/**").hasAnyAuthority("SUPERADMIN", "ADMIN", "REGISTRADOR")
-                .requestMatchers(HttpMethod.POST, "/api/usuarios/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
+                // Solo Admin/SuperAdmin borran
                 .requestMatchers(HttpMethod.DELETE, "/**").hasAnyAuthority("SUPERADMIN", "ADMIN")
                 
                 .anyRequest().authenticated()
             )
-            // 2. IMPORTANTE: Esto permite que el JavaScript use la sesión del login
-            .formLogin(form -> form
-                .loginPage("/")
-                .loginProcessingUrl("/api/usuarios/login")
-                .defaultSuccessUrl("/", true)
-                .permitAll()
-            )
-            .httpBasic(Customizer.withDefaults());
+            // QUITA LA VENTANA GRIS: Deshabilitamos el popup de "Acceder"
+            .httpBasic(basic -> basic.disable())
+            
+            .formLogin(form -> form.loginPage("/").permitAll())
+            .logout(logout -> logout.permitAll());
 
         return http.build();
     }
